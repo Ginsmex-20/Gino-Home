@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#161616"/>
+  <rect width="512" height="512" rx="96" fill="#f97316" opacity="0.12"/>
+  <!-- Haus -->
+  <path d="M256 120 L420 260 L380 260 L380 400 L300 400 L300 310 L212 310 L212 400 L132 400 L132 260 L92 260 Z" fill="#f97316"/>
+  <rect x="212" y="310" width="88" height="90" rx="8" fill="#161616" opacity="0.6"/>
+</svg>

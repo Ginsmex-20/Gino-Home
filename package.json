@@ -1,0 +1,127 @@
+{
+  "name": "gino-home",
+  "version": "1.0.0",
+  "description": "Gino-Home – Haushaltsverwaltung für Zuhause",
+  "private": true,
+  "main": "electron/main.js",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
+    "electron:dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:win": "npm run build:frontend && electron-builder --win --x64",
+    "build:mac": "npm run build:frontend && electron-builder --mac",
+    "build:linux": "npm run build:frontend && electron-builder --linux",
+    "build:all": "npm run build:frontend && electron-builder --win --mac --linux",
+    "install:all": "npm install && npm install --workspace=backend && npm install --workspace=frontend",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "build": {
+    "appId": "de.gino-home.app",
+    "productName": "Gino-Home",
+    "copyright": "Copyright © 2024",
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/better-sqlite3/**",
+      "**/node_modules/bindings/**",
+      "**/node_modules/file-uri-to-path/**"
+    ],
+    "extraResources": [
+      {
+        "from": "backend",
+        "to": "backend",
+        "filter": [
+          "**/*",
+          "!node_modules/.cache/**",
+          "!*.db",
+          "!uploads/**"
+        ]
+      }
+    ],
+    "files": [
+      "electron/**/*",
+      "frontend/dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist-app",
+      "buildResources": "electron"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.ico",
+      "artifactName": "Gino-Home-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerLanguages": [
+        "de_DE"
+      ],
+      "language": "1031",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Gino-Home"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "electron/icon.icns",
+      "category": "public.app-category.productivity",
+      "artifactName": "Gino-Home-${version}.${ext}"
+    },
+    "dmg": {
+      "title": "Gino-Home ${version}",
+      "background": null,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "electron/icon.png",
+      "category": "Office"
+    }
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.0.4",
+    "concurrently": "^8.2.2",
+    "electron": "^41.3.0",
+    "electron-builder": "^24.13.3",
+    "wait-on": "^7.2.0"
+  },
+  "dependencies": {
+    "png2icons": "^2.0.1",
+    "sharp": "^0.34.5"
+  }
+}
