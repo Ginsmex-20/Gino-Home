@@ -6,6 +6,8 @@ frontend/ios/
 frontend/android/
 backend/uploads/
 backend/*.db
+backend/*.db-wal
+backend/*.db-shm
 backend/.env
 .env
 .env.local
