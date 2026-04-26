@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+
+  # ── Backend (Express + SQLite) ────────────────────────
+  backend:
+    build: ./backend
+    container_name: ginohome-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - DB_PATH=/app/data/ginohome.db
+      - UPLOADS_PATH=/app/data/uploads
+      - JWT_SECRET=${JWT_SECRET:-bitte-in-.env-aendern-!}
+    volumes:
+      # Datenbank & Uploads bleiben dauerhaft auf TrueNAS erhalten
+      - ./data:/app/data
+    networks:
+      - ginohome
+
+  # ── Frontend (React + nginx) ──────────────────────────
+  frontend:
+    build: ./frontend
+    container_name: ginohome-frontend
+    restart: unless-stopped
+    ports:
+      # TrueNAS-IP:8080 → App im Browser öffnen
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - ginohome
+
+networks:
+  ginohome:
+    driver: bridge

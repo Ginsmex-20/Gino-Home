@@ -7,7 +7,21 @@ const { uploadsPath } = require('./config');
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:5174', 'app://localhost'],
+  origin: (origin, callback) => {
+    // Erlaubte Origins: lokale Dev-Server, Electron, nginx-Frontend im Docker-Netz
+    const allowed = [
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:8080',
+      'app://localhost',
+    ];
+    // Kein Origin = Server-zu-Server (nginx proxy) oder curl → erlauben
+    if (!origin || allowed.includes(origin)) return callback(null, true);
+    // Zusätzliche Origins via Env (z.B. CORS_ORIGIN=http://192.168.1.50:8080)
+    const extra = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [];
+    if (extra.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: ${origin} nicht erlaubt`));
+  },
   credentials: true
 }));
 app.use(express.json());

@@ -14,3 +14,6 @@ backend/.env
 *.log
 .DS_Store
 Thumbs.db
+
+# TrueNAS Docker Volumes (Daten bleiben auf dem Server)
+data/
