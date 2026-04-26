@@ -6,6 +6,7 @@ const auth = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { sendWelcome } = require('../services/email');
 
 const { uploadsPath } = require('../config');
 
@@ -35,6 +36,8 @@ router.post('/register', async (req, res) => {
     const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
 
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    // Willkommens-Mail senden (nur wenn SMTP konfiguriert)
+    sendWelcome(user.email, user.username).catch(() => {});
     res.json({ token, user });
   } catch (err) {
     res.status(500).json({ error: err.message });

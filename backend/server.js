@@ -8,16 +8,15 @@ const app = express();
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Erlaubte Origins: lokale Dev-Server, Electron, nginx-Frontend im Docker-Netz
-    const allowed = [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://localhost:8080',
-      'app://localhost',
-    ];
-    // Kein Origin = Server-zu-Server (nginx proxy) oder curl → erlauben
-    if (!origin || allowed.includes(origin)) return callback(null, true);
-    // Zusätzliche Origins via Env (z.B. CORS_ORIGIN=http://192.168.1.50:8080)
+    // Kein Origin = Server-zu-Server (nginx proxy, curl) → immer erlauben
+    if (!origin) return callback(null, true);
+    // Localhost (Dev)
+    if (/^https?:\/\/localhost(:\d+)?$/.test(origin)) return callback(null, true);
+    // Electron
+    if (origin === 'app://localhost') return callback(null, true);
+    // Private Netzwerk-IPs (192.168.x.x / 10.x.x.x / 172.16-31.x.x) → Home-Server / TrueNAS
+    if (/^https?:\/\/(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)\d+/.test(origin)) return callback(null, true);
+    // Zusätzliche Origins via Env (z.B. CORS_ORIGIN=https://meinedomain.de)
     const extra = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [];
     if (extra.includes(origin)) return callback(null, true);
     callback(new Error(`CORS: ${origin} nicht erlaubt`));

@@ -13,6 +13,12 @@ services:
       - DB_PATH=/app/data/ginohome.db
       - UPLOADS_PATH=/app/data/uploads
       - JWT_SECRET=${JWT_SECRET:-bitte-in-.env-aendern-!}
+      # E-Mail (optional — leer lassen um zu deaktivieren)
+      - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
     volumes:
       # Datenbank & Uploads bleiben dauerhaft auf TrueNAS erhalten
       - ./data:/app/data
