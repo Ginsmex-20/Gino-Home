@@ -48,7 +48,9 @@ router.put('/:id', auth, (req, res) => {
 router.delete('/:id', auth, (req, res) => {
   const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ?').get(req.params.id, req.user.id);
   if (!doc) return res.status(404).json({ error: 'Nicht gefunden' });
-  const fullPath = path.join(__dirname, '..', doc.filepath);
+  // Datei vom korrekten Upload-Pfad (Volume) löschen
+  const filename = path.basename(doc.filepath);
+  const fullPath = path.join(uploadsPath, 'documents', filename);
   if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
   db.prepare('DELETE FROM documents WHERE id = ?').run(req.params.id);
   res.json({ success: true });
