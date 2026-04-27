@@ -31,6 +31,7 @@ app.use('/api/groups', require('./routes/groups'));
 app.use('/api/tasks', require('./routes/tasks'));
 app.use('/api/finance', require('./routes/finance'));
 app.use('/api/documents', require('./routes/documents'));
+app.use('/api/document-categories', require('./routes/documents')); // alias
 app.use('/api/vault', require('./routes/vault'));
 app.use('/api/calendar', require('./routes/calendar'));
 

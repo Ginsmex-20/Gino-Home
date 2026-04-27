@@ -26,10 +26,20 @@ if ! command -v xcode-select &> /dev/null || ! xcode-select -p &> /dev/null; the
 fi
 echo "✅ Xcode gefunden"
 
-# Cocoapods prüfen
+# Homebrew prüfen (kein sudo nötig)
+if ! command -v brew &> /dev/null; then
+  echo "📦 Homebrew wird installiert..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  # Homebrew zum PATH hinzufügen (Apple Silicon Mac)
+  echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+  eval "$(/opt/homebrew/bin/brew shellenv)"
+fi
+echo "✅ Homebrew gefunden"
+
+# CocoaPods über Homebrew (kein sudo nötig!)
 if ! command -v pod &> /dev/null; then
-  echo "📦 CocoaPods wird installiert..."
-  sudo gem install cocoapods
+  echo "📦 CocoaPods wird installiert (kein Passwort nötig)..."
+  brew install cocoapods
 fi
 echo "✅ CocoaPods gefunden"
 

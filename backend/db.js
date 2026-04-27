@@ -132,6 +132,17 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
+  CREATE TABLE IF NOT EXISTS document_categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    icon TEXT DEFAULT '📁',
+    color TEXT DEFAULT '#f97316',
+    created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+    group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(name, created_by, group_id)
+  );
+
   CREATE TABLE IF NOT EXISTS loans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,

@@ -19,11 +19,42 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 } });
 
+// ── Kategorien ──────────────────────────────────────────────────────────────
+router.get('/categories', auth, (req, res) => {
+  const { group_id } = req.query;
+  const cats = group_id
+    ? db.prepare('SELECT * FROM document_categories WHERE group_id = ? ORDER BY name').all(group_id)
+    : db.prepare('SELECT * FROM document_categories WHERE created_by = ? AND group_id IS NULL ORDER BY name').all(req.user.id);
+  res.json(cats);
+});
+
+router.post('/categories', auth, (req, res) => {
+  const { name, icon, color, group_id } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name erforderlich' });
+  try {
+    const result = db.prepare('INSERT INTO document_categories (name, icon, color, created_by, group_id) VALUES (?, ?, ?, ?, ?)').run(name, icon || '📁', color || '#f97316', req.user.id, group_id || null);
+    res.json(db.prepare('SELECT * FROM document_categories WHERE id = ?').get(result.lastInsertRowid));
+  } catch { res.status(409).json({ error: 'Kategorie existiert bereits' }); }
+});
+
+router.delete('/categories/:id', auth, (req, res) => {
+  db.prepare('DELETE FROM document_categories WHERE id = ? AND created_by = ?').run(req.params.id, req.user.id);
+  res.json({ success: true });
+});
+
+// ── Dokumente ────────────────────────────────────────────────────────────────
 router.get('/', auth, (req, res) => {
   const { group_id, category } = req.query;
-  let query = `SELECT d.*, u.username as uploader_name FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.uploaded_by = ?`;
-  const params = [req.user.id];
-  if (group_id) { query += ' AND d.group_id = ?'; params.push(group_id); }
+  let query, params;
+  if (group_id) {
+    // Gruppe: alle Dokumente der Gruppe sehen
+    query = `SELECT d.*, u.username as uploader_name FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.group_id = ?`;
+    params = [group_id];
+  } else {
+    // Persönlich: nur eigene Dokumente
+    query = `SELECT d.*, u.username as uploader_name FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.uploaded_by = ? AND d.group_id IS NULL`;
+    params = [req.user.id];
+  }
   if (category) { query += ' AND d.category = ?'; params.push(category); }
   query += ' ORDER BY d.created_at DESC';
   res.json(db.prepare(query).all(...params));

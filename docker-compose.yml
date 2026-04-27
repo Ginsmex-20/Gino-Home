@@ -38,6 +38,25 @@ services:
     networks:
       - ginohome
 
+  # ── Cloudflare Tunnel (optional — für externen Zugriff) ──
+  # 1. Konto unter https://dash.cloudflare.com erstellen (kostenlos)
+  # 2. Zero Trust → Networks → Tunnels → Tunnel erstellen
+  # 3. Token kopieren und in .env eintragen: CLOUDFLARE_TUNNEL_TOKEN=...
+  # 4. sudo docker compose up -d tunnel
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    container_name: ginohome-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - frontend
+    networks:
+      - ginohome
+    profiles:
+      - tunnel   # Nur starten wenn explizit aktiviert
+
 networks:
   ginohome:
     driver: bridge
