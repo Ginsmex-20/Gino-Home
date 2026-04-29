@@ -85,7 +85,7 @@ export default function Calendar() {
             const today = isToday(day);
             return (
               <div key={i} onClick={() => setSelectedDay(isSameDay(day, selectedDay) ? null : day)}
-                className={`min-h-[80px] p-1.5 border-r border-b border-border cursor-pointer transition-colors ${!isCurrentMonth ? 'opacity-30' : ''} ${isSelected ? 'bg-orange-500/10' : 'hover:bg-bg-hover'} ${i % 7 === 6 ? 'border-r-0' : ''}`}>
+                className={`min-h-[60px] md:min-h-[80px] p-1 md:p-1.5 border-r border-b border-border cursor-pointer transition-colors ${!isCurrentMonth ? 'opacity-30' : ''} ${isSelected ? 'bg-orange-500/10' : 'hover:bg-bg-hover'} ${i % 7 === 6 ? 'border-r-0' : ''}`}>
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium mb-1 ${today ? 'bg-orange-500 text-white' : 'text-slate-300'}`}>
                   {format(day, 'd')}
                 </div>
@@ -106,7 +106,7 @@ export default function Calendar() {
       {selectedDay && (
         <div className="bg-bg-card border border-border rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium text-white">{format(selectedDay, 'EEEE, d. MMMM yyyy', { locale: de })}</h3>
+            <h3 className="font-medium text-white text-sm md:text-base">{format(selectedDay, 'EEEE, d. MMMM yyyy', { locale: de })}</h3>
             <button onClick={() => openCreate(selectedDay)} className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-500/10 hover:bg-orange-500/20 text-orange-400 rounded-lg text-xs transition-colors">
               <Plus size={12} /> Termin
             </button>
@@ -138,7 +138,7 @@ export default function Calendar() {
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel *</label><input className="w-full px-3.5 py-2.5 text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label><textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-sm text-slate-400 mb-1.5">Startdatum *</label><input type={form.all_day ? 'date' : 'datetime-local'} className="w-full px-3.5 py-2.5 text-sm" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
             <div><label className="block text-sm text-slate-400 mb-1.5">Enddatum</label><input type={form.all_day ? 'date' : 'datetime-local'} className="w-full px-3.5 py-2.5 text-sm" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
           </div>

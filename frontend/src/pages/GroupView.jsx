@@ -108,10 +108,10 @@ function TasksTab({ groupId, groupName }) {
         </button>
       </div>
 
-      {/* Kanban Board */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Kanban Board — horizontal scroll auf Mobil */}
+      <div className="kanban-scroll md:grid md:grid-cols-2 xl:grid-cols-4">
         {STATUS_OPTS.map(({ value, label, color }) => (
-          <div key={value} className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4">
+          <div key={value} className="kanban-col md:min-w-0 bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
               <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${color}`}>{label}</span>
               <span className="text-xs text-slate-500 bg-[#161616] px-2 py-0.5 rounded-full">{grouped[value]?.length || 0}</span>
@@ -152,10 +152,10 @@ function TasksTab({ groupId, groupName }) {
 
       {/* Modal */}
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditing(null); }} title={editing ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'} size="lg">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
             <input className="w-full px-3.5 py-2.5 text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
-          <div className="col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
+          <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Status</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
@@ -483,7 +483,7 @@ function CalendarTab({ groupId }) {
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel *</label><input className="w-full px-3.5 py-2.5 text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label><textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div><label className="block text-sm text-slate-400 mb-1.5">Startdatum *</label><input type={form.all_day ? 'date' : 'datetime-local'} className="w-full px-3.5 py-2.5 text-sm" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} /></div>
             <div><label className="block text-sm text-slate-400 mb-1.5">Enddatum</label><input type={form.all_day ? 'date' : 'datetime-local'} className="w-full px-3.5 py-2.5 text-sm" value={form.end_date} onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))} /></div>
           </div>
@@ -649,14 +649,14 @@ export default function GroupView() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <Link to="/groups" className="p-2 hover:bg-[#2a2a2a] rounded-xl transition-colors text-slate-400 hover:text-white">
+        <Link to="/groups" className="p-2 hover:bg-[#2a2a2a] rounded-xl transition-colors text-slate-400 hover:text-white shrink-0">
           <ArrowLeft size={18} />
         </Link>
         <div className="flex-1 min-w-0">
-          <h1 className="text-2xl font-bold text-white truncate">{group.name}</h1>
-          {group.description && <p className="text-sm text-slate-400 mt-0.5">{group.description}</p>}
+          <h1 className="text-xl md:text-2xl font-bold text-white truncate">{group.name}</h1>
+          {group.description && <p className="text-xs md:text-sm text-slate-400 mt-0.5 truncate">{group.description}</p>}
         </div>
-        <span className={`text-xs px-2.5 py-1 rounded-lg font-medium shrink-0 ${typeBg[group.type] || 'bg-orange-500/10 text-orange-500'}`}>
+        <span className={`text-xs px-2 md:px-2.5 py-1 rounded-lg font-medium shrink-0 ${typeBg[group.type] || 'bg-orange-500/10 text-orange-500'}`}>
           {typeLabels[group.type]}
         </span>
       </div>

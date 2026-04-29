@@ -77,15 +77,16 @@ export default function Documents() {
         </button>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
+      <div className="flex flex-col gap-3">
+        <div className="relative w-full">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
           <input className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl" placeholder="Suchen..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="flex gap-1 flex-wrap">
+        {/* Kategorie-Pills — horizontal scrollbar auf Mobil */}
+        <div className="tab-scroll">
           {CATS.map((c, i) => (
             <button key={c} onClick={() => setCatFilter(i === 0 ? '' : CAT_VALS[i - 1])}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${(i === 0 ? catFilter === '' : catFilter === CAT_VALS[i-1]) ? 'bg-orange-500 text-white' : 'bg-bg-card border border-border text-slate-400 hover:text-white'}`}>
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${(i === 0 ? catFilter === '' : catFilter === CAT_VALS[i-1]) ? 'bg-orange-500 text-white' : 'bg-bg-card border border-border text-slate-400 hover:text-white'}`}>
               {c}
             </button>
           ))}
@@ -104,14 +105,18 @@ export default function Documents() {
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
           <div className="divide-y divide-border">
             {filtered.map(doc => (
-              <div key={doc.id} className="flex items-center gap-4 px-4 py-3 hover:bg-bg-hover transition-colors group">
+              <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-bg-hover transition-colors group">
                 <div className="w-9 h-9 bg-bg rounded-lg flex items-center justify-center shrink-0">{fileIcon(doc.mimetype)}</div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                  <p className="text-xs text-slate-500">{doc.filename} · {formatSize(doc.size)} · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</p>
+                  <p className="text-xs text-slate-500 truncate">
+                    <span className="hidden sm:inline">{doc.filename} · </span>
+                    {formatSize(doc.size)}
+                    <span className="hidden md:inline"> · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</span>
+                  </p>
                 </div>
-                {doc.category && <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0">{doc.category}</span>}
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {doc.category && <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0 hidden sm:inline">{doc.category}</span>}
+                <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                   <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
                   <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category, description: doc.description || '' }); setShowEdit(true); }} className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
                   <button onClick={() => deleteMutation.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>

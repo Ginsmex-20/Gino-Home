@@ -30,3 +30,39 @@ input:focus, textarea:focus, select:focus {
 }
 input::placeholder, textarea::placeholder { color: #64748b !important; }
 input[type="checkbox"] { width: 16px !important; height: 16px !important; accent-color: #f97316; }
+
+/* ── Mobile Slide-Up Animation (Modal) ──────────────────────────── */
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+.animate-slide-up { animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* ── Safe-area Padding für iPhone-Notch ────────────────────────── */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ── Horizontal-Scroll Kanban (Touch-freundlich) ────────────────── */
+.kanban-scroll {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+.kanban-scroll::-webkit-scrollbar { height: 4px; }
+.kanban-col {
+  min-width: 260px;
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ── Horizontaler Tab-Scroll ────────────────────────────────────── */
+.tab-scroll {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.tab-scroll::-webkit-scrollbar { display: none; }

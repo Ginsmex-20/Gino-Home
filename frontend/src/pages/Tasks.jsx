@@ -74,18 +74,18 @@ export default function Tasks() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-2xl font-bold text-white">Aufgaben</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <select className="px-3 py-2 text-sm rounded-xl" value={filter.type} onChange={e => setFilter(f => ({ ...f, type: e.target.value }))}>
             <option value="">Alle Typen</option>
             <option value="household">Haushalt</option>
             <option value="general">Allgemein</option>
           </select>
-          <select className="px-3 py-2 text-sm rounded-xl" value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))}>
+          <select className="hidden sm:block px-3 py-2 text-sm rounded-xl" value={filter.status} onChange={e => setFilter(f => ({ ...f, status: e.target.value }))}>
             <option value="">Alle Status</option>
             {STATUS_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
           <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors">
-            <Plus size={16} /> Aufgabe
+            <Plus size={16} /> <span className="hidden xs:inline">Aufgabe</span>
           </button>
         </div>
       </div>
@@ -93,9 +93,10 @@ export default function Tasks() {
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-4">
+        {/* Kanban: horizontaler Scroll auf Mobil, Grid auf Desktop */}
+        <div className="kanban-scroll md:grid md:grid-cols-2 xl:grid-cols-4">
           {STATUS_OPTS.map(({ value, label, color }) => (
-            <div key={value} className="bg-bg-card border border-border rounded-2xl p-4">
+            <div key={value} className="kanban-col md:min-w-0 bg-bg-card border border-border rounded-2xl p-4">
               <div className="flex items-center justify-between mb-3">
                 <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${color}`}>{label}</span>
                 <span className="text-xs text-slate-500 bg-bg px-2 py-0.5 rounded-full">{grouped[value]?.length || 0}</span>
@@ -135,12 +136,12 @@ export default function Tasks() {
       )}
 
       <Modal open={showModal} onClose={closeModal} title={editing ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'} size="lg">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
             <input className="w-full px-3.5 py-2.5 text-sm" placeholder="Aufgabe..." value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           </div>
@@ -178,7 +179,7 @@ export default function Tasks() {
               {groups.map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
             </select>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-sm text-slate-400 mb-1.5">Hinweise</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>

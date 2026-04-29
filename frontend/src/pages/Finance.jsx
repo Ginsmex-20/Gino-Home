@@ -107,23 +107,23 @@ export default function Finance() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-white">Finanzen</h1>
           <p className="text-sm text-slate-500 mt-0.5">Budget, Verträge & Verbindlichkeiten</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={() => { setEditItem(null); setItemForm(emptyItem); setShowItem(true); }}
-            className="flex items-center gap-2 px-3 py-2 bg-[#1e1e1e] border border-[#2a2a2a] hover:border-orange-500/50 text-slate-300 rounded-xl text-sm transition-colors">
-            <Plus size={14} /> Eintrag
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#1e1e1e] border border-[#2a2a2a] hover:border-orange-500/50 text-slate-300 rounded-xl text-sm transition-colors">
+            <Plus size={14} /> <span className="hidden sm:inline">Eintrag</span>
           </button>
           <button onClick={() => { setEditContract(null); setContractForm(emptyContract); setShowContract(true); }}
-            className="flex items-center gap-2 px-3 py-2 bg-[#1e1e1e] border border-[#2a2a2a] hover:border-orange-500/50 text-slate-300 rounded-xl text-sm transition-colors">
-            <Plus size={14} /> Vertrag
+            className="flex items-center gap-1.5 px-3 py-2 bg-[#1e1e1e] border border-[#2a2a2a] hover:border-orange-500/50 text-slate-300 rounded-xl text-sm transition-colors">
+            <Plus size={14} /> <span className="hidden sm:inline">Vertrag</span>
           </button>
           <button onClick={() => { setEditLoan(null); setLoanForm(emptyLoan); setShowLoan(true); }}
-            className="flex items-center gap-2 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm transition-colors shadow-md shadow-orange-500/20">
-            <Plus size={14} /> Kredit/Schuld
+            className="flex items-center gap-1.5 px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm transition-colors shadow-md shadow-orange-500/20">
+            <Plus size={14} /> <span className="hidden sm:inline">Kredit/Schuld</span>
           </button>
         </div>
       </div>
@@ -146,11 +146,11 @@ export default function Finance() {
         ))}
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-1 w-fit">
+      {/* Tabs — scrollbar auf sehr kleinen Screens */}
+      <div className="tab-scroll bg-[#1e1e1e] border border-[#2a2a2a] rounded-xl p-1 w-fit max-w-full">
         {TABS.map(([v, l]) => (
           <button key={v} onClick={() => setTab(v)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === v ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-white'}`}>
+            className={`shrink-0 px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${tab === v ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-white'}`}>
             {l}
           </button>
         ))}
@@ -180,7 +180,7 @@ export default function Finance() {
                     <p className="text-sm font-medium text-white">{item.title}</p>
                     <p className="text-xs text-slate-500">{item.category} · {item.date ? format(new Date(item.date), 'd. MMM yyyy', { locale: de }) : ''}</p>
                   </div>
-                  {item.description && <p className="text-xs text-slate-600 hidden lg:block truncate max-w-[200px]">{item.description}</p>}
+                  {item.description && <p className="text-xs text-slate-600 hidden xl:block truncate max-w-[200px]">{item.description}</p>}
                   <p className={`font-semibold text-sm shrink-0 ${item.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
                     {item.type === 'income' ? '+' : '-'}{parseFloat(item.amount).toFixed(2)} €
                   </p>
@@ -403,8 +403,8 @@ export default function Finance() {
 
       {/* Contract Modal */}
       <Modal open={showContract} onClose={() => { setShowContract(false); setEditContract(null); }} title={editContract ? 'Vertrag bearbeiten' : 'Neuer Vertrag'} size="lg">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
             <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Netflix, Stromvertrag..." value={contractForm.title} onChange={e => setContractForm(f => ({ ...f, title: e.target.value }))} />
           </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Anbieter</label>
@@ -436,7 +436,7 @@ export default function Finance() {
               <option value="pending">Ausstehend</option>
             </select>
           </div>
-          <div className="col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Notizen</label>
+          <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Notizen</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={contractForm.notes} onChange={e => setContractForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
         </div>
@@ -451,9 +451,9 @@ export default function Finance() {
 
       {/* Loan Modal */}
       <Modal open={showLoan} onClose={() => { setShowLoan(false); setEditLoan(null); }} title={editLoan ? 'Eintrag bearbeiten' : 'Kredit / Schuld / Ratenkauf'} size="lg">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Type selector */}
-          <div className="col-span-2">
+          <div className="col-span-1 sm:col-span-2">
             <label className="block text-sm text-slate-400 mb-2">Typ</label>
             <div className="grid grid-cols-3 gap-2">
               {LOAN_TYPES.map(({ v, l, icon: LIcon }) => (
@@ -465,7 +465,7 @@ export default function Finance() {
             </div>
           </div>
 
-          <div className="col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Bezeichnung *</label>
+          <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Bezeichnung *</label>
             <input className="w-full px-3.5 py-2.5 text-sm" placeholder={loanForm.type === 'loan' ? 'z.B. Autokredit, Studentenkredit...' : loanForm.type === 'debt' ? 'z.B. Schulden bei Max...' : 'z.B. iPhone 16 Ratenkauf...'} value={loanForm.title} onChange={e => setLoanForm(f => ({ ...f, title: e.target.value }))} />
           </div>
 
@@ -510,7 +510,7 @@ export default function Finance() {
             <input type="date" className="w-full px-3.5 py-2.5 text-sm" value={loanForm.end_date} onChange={e => setLoanForm(f => ({ ...f, end_date: e.target.value }))} />
           </div>
 
-          <div className="col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Notizen</label>
+          <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Notizen</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} placeholder="Kontonummer, Vertragsnummer, Hinweise..." value={loanForm.notes} onChange={e => setLoanForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
         </div>
