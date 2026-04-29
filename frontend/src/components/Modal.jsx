@@ -3,53 +3,82 @@ import { useEffect } from 'react';
 
 export default function Modal({ open, onClose, title, children, size = 'md' }) {
   useEffect(() => {
-    if (open) document.body.style.overflow = 'hidden';
-    else document.body.style.overflow = '';
+    document.body.style.overflow = open ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [open]);
 
   if (!open) return null;
 
-  // Desktop-Maxbreite
-  const sizes = { sm: 'md:max-w-md', md: 'md:max-w-lg', lg: 'md:max-w-2xl', xl: 'md:max-w-4xl' };
+  const maxW = { sm: '440px', md: '520px', lg: '680px', xl: '900px' }[size] || '520px';
+  const isMobile = window.innerWidth < 768;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end md:items-center justify-center"
       onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 50,
+        display: 'flex',
+        alignItems: isMobile ? 'flex-end' : 'center',
+        justifyContent: 'center',
+        padding: isMobile ? 0 : '16px',
+      }}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'rgba(0,0,0,0.75)',
+        backdropFilter: 'blur(6px)',
+        WebkitBackdropFilter: 'blur(6px)',
+      }} />
 
-      {/* Sheet / Dialog */}
+      {/* Dialog / Sheet */}
       <div
-        className={`
-          relative w-full ${sizes[size]}
-          bg-bg-card border border-border shadow-2xl
-          rounded-t-3xl md:rounded-2xl
-          max-h-[92vh] flex flex-col
-          animate-slide-up md:animate-none
-        `}
         onClick={e => e.stopPropagation()}
+        style={{
+          position: 'relative',
+          width: '100%',
+          maxWidth: isMobile ? '100%' : maxW,
+          background: '#1a1a1a',
+          border: '1px solid rgba(255,255,255,0.08)',
+          borderRadius: isMobile ? '24px 24px 0 0' : '20px',
+          boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          maxHeight: isMobile ? '92dvh' : '90dvh',
+          display: 'flex', flexDirection: 'column',
+          animation: isMobile ? 'slide-up 0.3s cubic-bezier(0.32,0.72,0,1)' : 'none',
+        }}
       >
-        {/* Drag-Handle (nur Mobile) */}
-        <div className="flex justify-center pt-3 pb-1 md:hidden shrink-0">
-          <div className="w-10 h-1 rounded-full bg-slate-700" />
-        </div>
+        {/* Drag-Handle (nur Mobil) */}
+        {isMobile && (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.2)' }} />
+          </div>
+        )}
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
-          <h2 className="text-base md:text-lg font-semibold text-white">{title}</h2>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-bg-hover transition-colors"
-          >
-            <X size={18} />
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: isMobile ? '12px 20px 14px' : '18px 20px',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          flexShrink: 0,
+        }}>
+          <h2 style={{ fontSize: '17px', fontWeight: 700, color: '#fff', margin: 0 }}>{title}</h2>
+          <button onClick={onClose} style={{
+            width: 32, height: 32, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.08)', border: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#94a3b8', cursor: 'pointer',
+          }}>
+            <X size={16} />
           </button>
         </div>
 
-        {/* Scrollbarer Inhalt */}
-        <div className="p-4 md:p-5 overflow-y-auto flex-1">
+        {/* Inhalt */}
+        <div style={{
+          padding: '20px',
+          overflowY: 'auto',
+          flex: 1,
+          WebkitOverflowScrolling: 'touch',
+        }}>
           {children}
         </div>
       </div>

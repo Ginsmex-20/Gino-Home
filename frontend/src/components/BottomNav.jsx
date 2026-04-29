@@ -1,75 +1,79 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, CheckSquare, Euro, Calendar, Users
 } from 'lucide-react';
 
-const NAV = [
-  { to: '/',         icon: LayoutDashboard, label: 'Home',     exact: true },
-  { to: '/tasks',    icon: CheckSquare,     label: 'Aufgaben' },
-  { to: '/finance',  icon: Euro,            label: 'Finanzen' },
-  { to: '/calendar', icon: Calendar,        label: 'Kalender' },
-  { to: '/groups',   icon: Users,           label: 'Gruppen'  },
+const TABS = [
+  { to: '/',         icon: LayoutDashboard, label: 'Home',     exact: true  },
+  { to: '/tasks',    icon: CheckSquare,     label: 'Aufgaben', exact: false },
+  { to: '/finance',  icon: Euro,            label: 'Finanzen', exact: false },
+  { to: '/calendar', icon: Calendar,        label: 'Kalender', exact: false },
+  { to: '/groups',   icon: Users,           label: 'Gruppen',  exact: false },
 ];
 
 export default function BottomNav() {
   const location = useLocation();
+  const navigate = useNavigate();
 
   return (
     <nav style={{
-      position: 'fixed',
-      bottom: 0, left: 0, right: 0,
-      zIndex: 35,
-      background: 'rgba(17,17,17,0.97)',
-      backdropFilter: 'blur(12px)',
-      borderTop: '1px solid #1e1e1e',
-      paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+      position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 35,
+      background: 'rgba(10,10,10,0.95)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+      borderTop: '1px solid rgba(255,255,255,0.06)',
+      paddingBottom: 'env(safe-area-inset-bottom, 8px)',
     }}>
       <div style={{
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'space-around',
-        padding: '6px 4px 8px',
+        padding: '8px 4px 4px',
       }}>
-        {NAV.map(({ to, icon: Icon, label, exact }) => {
+        {TABS.map(({ to, icon: Icon, label, exact }) => {
           const active = exact
             ? location.pathname === to
             : location.pathname.startsWith(to);
 
           return (
-            <NavLink
+            <button
               key={to}
-              to={to}
-              end={exact}
-              style={{ textDecoration: 'none', flex: 1, display: 'flex', justifyContent: 'center' }}
+              onClick={() => navigate(to)}
+              style={{
+                flex: 1, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', gap: '4px',
+                padding: '4px 2px',
+                background: 'none', border: 'none', cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+                outline: 'none',
+              }}
             >
+              {/* Icon in gefärbter Kapsel */}
               <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: '3px',
-                padding: '6px 12px',
-                borderRadius: '12px',
-                transition: 'all 0.15s',
+                width: 50, height: 32,
+                borderRadius: 16,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: active ? 'rgba(249,115,22,0.18)' : 'transparent',
+                transition: 'background 0.2s, transform 0.15s',
+                transform: active ? 'scale(1.05)' : 'scale(1)',
               }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: active ? '#f97316' : 'transparent',
-                  boxShadow: active ? '0 4px 12px rgba(249,115,22,0.35)' : 'none',
-                  transition: 'all 0.2s',
-                }}>
-                  <Icon size={20} color={active ? '#ffffff' : '#64748b'} />
-                </div>
-                <span style={{
-                  fontSize: '10px',
-                  fontWeight: 500,
-                  color: active ? '#f97316' : '#64748b',
-                  transition: 'color 0.15s',
-                }}>
-                  {label}
-                </span>
+                <Icon
+                  size={22}
+                  color={active ? '#f97316' : '#6b7280'}
+                  strokeWidth={active ? 2.2 : 1.8}
+                />
               </div>
-            </NavLink>
+              {/* Label */}
+              <span style={{
+                fontSize: '10px',
+                fontWeight: active ? 600 : 400,
+                color: active ? '#f97316' : '#6b7280',
+                letterSpacing: '0.01em',
+                transition: 'color 0.2s',
+              }}>
+                {label}
+              </span>
+            </button>
           );
         })}
       </div>

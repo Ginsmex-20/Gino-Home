@@ -2,67 +2,125 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Basis ──────────────────────────────────────────────────────────── */
 * { box-sizing: border-box; }
 
-body {
-  background-color: #161616;
-  color: #f1f5f9;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  margin: 0;
+html {
+  background-color: #0f0f0f;
+  overflow-x: hidden;
+  /* Verhindert Auto-Zoom auf Input-Felder auf iOS */
+  -webkit-text-size-adjust: 100%;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #1e1e1e; }
-::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 3px; }
+body {
+  background-color: #0f0f0f;
+  color: #f1f5f9;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  margin: 0;
+  overflow-x: hidden;
+  /* Kein blauer Tap-Highlight auf iOS/Android */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Scrollbars (Desktop) ───────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a2a2a; border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: #f97316; }
 
+/* ── Formularfelder ─────────────────────────────────────────────────── */
 input, textarea, select {
-  background: #262626 !important;
+  background: #1e1e1e !important;
   border: 1px solid #2a2a2a !important;
   color: #f1f5f9 !important;
-  border-radius: 8px;
+  border-radius: 10px;
   outline: none;
   transition: border-color 0.2s;
+  /* Kein Auto-Zoom auf iOS (font-size min 16px) */
+  font-size: 16px !important;
 }
 input:focus, textarea:focus, select:focus {
   border-color: #f97316 !important;
-  box-shadow: 0 0 0 2px rgba(249,115,22,0.15) !important;
+  box-shadow: 0 0 0 3px rgba(249,115,22,0.15) !important;
 }
-input::placeholder, textarea::placeholder { color: #64748b !important; }
-input[type="checkbox"] { width: 16px !important; height: 16px !important; accent-color: #f97316; }
+input::placeholder, textarea::placeholder { color: #4b5563 !important; }
+input[type="checkbox"] {
+  width: 18px !important; height: 18px !important;
+  accent-color: #f97316;
+  font-size: inherit !important;
+}
 
-/* ── Mobile Slide-Up Animation (Modal) ──────────────────────────── */
+/* ── Touch-Geräte: Action-Buttons immer sichtbar ────────────────────── */
+/* Auf Touch-Geräten gibt es kein "Hover" — Buttons müssen sichtbar sein */
+@media (hover: none) and (pointer: coarse) {
+  .group .opacity-0 { opacity: 1 !important; }
+  .group-hover\:opacity-100 { opacity: 1 !important; }
+
+  /* Größere Touch-Targets */
+  button, a[role="button"] { min-height: 44px; }
+
+  /* Kein Text-Select auf UI-Elementen */
+  button, nav, header { user-select: none; -webkit-user-select: none; }
+
+  /* Scrollbars auf Touch ausblenden */
+  ::-webkit-scrollbar { display: none; }
+  * { scrollbar-width: none; }
+}
+
+/* ── Mobile Slide-Up (Modal) ────────────────────────────────────────── */
 @keyframes slide-up {
-  from { transform: translateY(100%); opacity: 0; }
-  to   { transform: translateY(0);    opacity: 1; }
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0);    }
 }
-.animate-slide-up { animation: slide-up 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+.animate-slide-up { animation: slide-up 0.3s cubic-bezier(0.32, 0.72, 0, 1); }
 
-/* ── Safe-area Padding für iPhone-Notch ────────────────────────── */
+/* ── Safe-area (iPhone Notch / Home Indicator) ──────────────────────── */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* ── Horizontal-Scroll Kanban (Touch-freundlich) ────────────────── */
+/* ── Kanban horizontal scroll ───────────────────────────────────────── */
 .kanban-scroll {
   display: flex;
-  gap: 1rem;
+  gap: 12px;
   overflow-x: auto;
-  padding-bottom: 1rem;
+  padding-bottom: 8px;
   -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x mandatory;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
 }
-.kanban-scroll::-webkit-scrollbar { height: 4px; }
+.kanban-scroll::-webkit-scrollbar { display: none; }
 .kanban-col {
-  min-width: 260px;
+  min-width: 272px;
   scroll-snap-align: start;
   flex-shrink: 0;
 }
 
-/* ── Horizontaler Tab-Scroll ────────────────────────────────────── */
+/* ── Horizontaler Tab/Kategorie-Scroll ──────────────────────────────── */
 .tab-scroll {
   display: flex;
-  gap: 0.5rem;
+  gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
+  padding-bottom: 2px;
 }
 .tab-scroll::-webkit-scrollbar { display: none; }
+
+/* ── Karten / Cards: Mobile Optimierung ────────────────────────────── */
+@media (max-width: 767px) {
+  /* Verhindert horizontalen Overflow auf allen Seiten */
+  .max-w-7xl, [style*="max-width: 1280px"] {
+    width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Größere Klick-Targets in Listen */
+  .divide-y > div, .divide-y > a {
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+  }
+
+  /* Modal auf Vollbreite */
+  .fixed.inset-0 > div:last-child {
+    border-radius: 24px 24px 0 0;
+  }
+}
