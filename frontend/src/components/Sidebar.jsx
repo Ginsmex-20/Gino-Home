@@ -128,7 +128,7 @@ export default function Sidebar() {
   const handleLogout = () => { logout(); navigate('/login'); };
 
   return (
-    <aside className="hidden md:flex w-56 flex-col bg-[#111111] border-r border-[#1e1e1e] h-screen shrink-0">
+    <aside className="w-56 flex flex-col bg-[#111111] border-r border-[#1e1e1e] h-screen shrink-0">
       {/* Logo */}
       <div className="p-5 border-b border-[#1e1e1e]">
         <div className="flex items-center gap-2.5">

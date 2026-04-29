@@ -16,7 +16,7 @@ export default function BottomNav() {
   const location = useLocation();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 safe-bottom">
       {/* Blur + border */}
       <div className="bg-[#111111]/95 backdrop-blur-md border-t border-[#1e1e1e]">
         <div className="flex items-center justify-around px-1 py-1.5">
