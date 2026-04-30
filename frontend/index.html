@@ -25,9 +25,24 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72.png" />
 
-    <!-- Splash-Screen Farbe für iOS -->
     <style>
-      html, body { background-color: #161616; margin: 0; }
+      html, body { background-color: #0f0f0f; margin: 0; overflow-x: hidden; }
+
+      /* ── MOBILE: Sidebar verstecken ────────────────────────────── */
+      @media (max-width: 767px) {
+        .sidebar-desktop         { display: none !important; }
+        .mobile-header           { display: flex !important; }
+        .bottom-nav-bar          { display: flex !important; }
+        .mobile-overlay-sidebar  { display: block !important; }
+      }
+
+      /* ── DESKTOP: Mobile-Elemente verstecken ──────────────────── */
+      @media (min-width: 768px) {
+        .mobile-header           { display: none !important; }
+        .bottom-nav-bar          { display: none !important; }
+        .mobile-overlay-sidebar  { display: none !important; }
+        .page-content            { padding: 24px !important; padding-bottom: 24px !important; }
+      }
     </style>
   </head>
   <body>
