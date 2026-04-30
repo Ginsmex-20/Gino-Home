@@ -169,7 +169,7 @@ function TasksTab({ groupId }) {
             </div>
           </div>
           <button onClick={() => deleteMutation.mutate(t.id)}
-            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 rounded-lg transition-all">
+            style={{ padding: '7px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0, flexShrink: 0 }}>
             <Trash2 size={13} />
           </button>
         </div>
@@ -258,7 +258,7 @@ function DocumentsTab({ groupId }) {
             <p className="text-xs text-slate-500 mt-0.5">{d.uploader_name} · {formatSize(d.size)} · {format(new Date(d.created_at), 'd. MMM yyyy', { locale: de })}</p>
           </div>
           <button onClick={() => deleteMutation.mutate(d.id)}
-            className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 rounded-lg transition-all">
+            style={{ padding: '7px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0, flexShrink: 0 }}>
             <Trash2 size={13} />
           </button>
         </div>
@@ -324,7 +324,7 @@ function CalendarTab({ groupId }) {
         <p className="text-xs text-slate-500">{format(new Date(e.start_date), 'EEEE, d. MMMM yyyy', { locale: de })} · von {e.creator_name}</p>
       </div>
       <button onClick={() => deleteMutation.mutate(e.id)}
-        className="opacity-0 group-hover:opacity-100 p-1.5 text-slate-600 hover:text-red-400 rounded-lg transition-all">
+        style={{ padding: '7px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0, flexShrink: 0 }}>
         <Trash2 size={13} />
       </button>
     </div>

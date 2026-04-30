@@ -123,9 +123,9 @@ export default function Calendar() {
                     {e.description && <p className="text-xs text-slate-500 mt-0.5">{e.description}</p>}
                     {!e.all_day && e.start_date && <p className="text-xs text-slate-500">{format(new Date(e.start_date), 'HH:mm')} {e.end_date ? `– ${format(new Date(e.end_date), 'HH:mm')}` : ''}</p>}
                   </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => openEdit(e)} className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={13} /></button>
-                    <button onClick={() => deleteMutation.mutate(e.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={13} /></button>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                    <button onClick={() => openEdit(e)} style={{ padding: '7px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Edit size={13} /></button>
+                    <button onClick={() => deleteMutation.mutate(e.id)} style={{ padding: '7px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Trash2 size={13} /></button>
                   </div>
                 </div>
               ))}

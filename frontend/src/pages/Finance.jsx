@@ -129,19 +129,21 @@ export default function Finance() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
         {[
-          { icon: TrendingUp, label: 'Einnahmen', value: `${(summary?.income || 0).toFixed(2)} €`, cls: 'text-green-400', bg: 'bg-green-500/10' },
-          { icon: TrendingDown, label: 'Ausgaben', value: `${(summary?.expense || 0).toFixed(2)} €`, cls: 'text-red-400', bg: 'bg-red-500/10' },
-          { icon: Euro, label: 'Bilanz', value: `${(summary?.balance || 0).toFixed(2)} €`, cls: (summary?.balance || 0) >= 0 ? 'text-green-400' : 'text-red-400', bg: 'bg-orange-500/10' },
-          { icon: Receipt, label: 'Verträge/Mo', value: `${(summary?.contracts_total || 0).toFixed(0)} €`, cls: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { icon: CreditCard, label: 'Restschuld', value: `${(summary?.loans_remaining || 0).toFixed(0)} €`, cls: 'text-rose-400', bg: 'bg-rose-500/10' },
-          { icon: AlertCircle, label: 'Belastung/Mo', value: `${totalMonthly.toFixed(0)} €`, cls: 'text-orange-400', bg: 'bg-orange-500/10' },
-        ].map(({ icon: Icon, label, value, cls, bg }) => (
-          <div key={label} className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4">
-            <div className={`w-8 h-8 rounded-xl ${bg} flex items-center justify-center mb-2`}><Icon size={16} className={cls} /></div>
-            <p className={`text-lg font-bold ${cls}`}>{value}</p>
-            <p className="text-xs text-slate-500 mt-0.5">{label}</p>
+          { icon: TrendingUp,   label: 'Einnahmen',    value: `${(summary?.income  || 0).toFixed(2)} €`, color: '#22c55e', bg: 'rgba(34,197,94,0.1)'   },
+          { icon: TrendingDown, label: 'Ausgaben',      value: `${(summary?.expense || 0).toFixed(2)} €`, color: '#ef4444', bg: 'rgba(239,68,68,0.1)'   },
+          { icon: Euro,         label: 'Bilanz',        value: `${(summary?.balance || 0).toFixed(2)} €`, color: (summary?.balance || 0) >= 0 ? '#22c55e' : '#ef4444', bg: 'rgba(249,115,22,0.1)' },
+          { icon: Receipt,      label: 'Verträge/Mo',   value: `${(summary?.contracts_total   || 0).toFixed(0)} €`, color: '#f59e0b', bg: 'rgba(245,158,11,0.1)' },
+          { icon: CreditCard,   label: 'Restschuld',    value: `${(summary?.loans_remaining   || 0).toFixed(0)} €`, color: '#f43f5e', bg: 'rgba(244,63,94,0.1)'  },
+          { icon: AlertCircle,  label: 'Belastung/Mo',  value: `${totalMonthly.toFixed(0)} €`,                     color: '#f97316', bg: 'rgba(249,115,22,0.1)' },
+        ].map(({ icon: Icon, label, value, color, bg }) => (
+          <div key={label} style={{ background: '#1e1e1e', border: '1px solid #2a2a2a', borderRadius: '16px', padding: '14px' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '10px', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '8px' }}>
+              <Icon size={16} color={color} />
+            </div>
+            <p style={{ fontSize: '17px', fontWeight: 700, color, margin: '0 0 2px' }}>{value}</p>
+            <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>{label}</p>
           </div>
         ))}
       </div>
@@ -184,9 +186,9 @@ export default function Finance() {
                   <p className={`font-semibold text-sm shrink-0 ${item.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
                     {item.type === 'income' ? '+' : '-'}{parseFloat(item.amount).toFixed(2)} €
                   </p>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                    <button onClick={() => openEditItem(item)} className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={13} /></button>
-                    <button onClick={() => deleteItemMutation.mutate(item.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={13} /></button>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                    <button onClick={() => openEditItem(item)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Edit size={13} /></button>
+                    <button onClick={() => deleteItemMutation.mutate(item.id)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Trash2 size={13} /></button>
                   </div>
                 </div>
               ))}
@@ -231,9 +233,9 @@ export default function Finance() {
                       </p>
                     </div>
                     <p className="font-semibold text-sm text-amber-400 shrink-0">{parseFloat(c.amount || 0).toFixed(2)} €</p>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <button onClick={() => openEditContract(c)} className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={13} /></button>
-                      <button onClick={() => deleteContractMutation.mutate(c.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={13} /></button>
+                    <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                      <button onClick={() => openEditContract(c)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Edit size={13} /></button>
+                      <button onClick={() => deleteContractMutation.mutate(c.id)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Trash2 size={13} /></button>
                     </div>
                   </div>
                 );
@@ -288,9 +290,9 @@ export default function Finance() {
                               <p className="text-sm font-bold text-rose-400">{remaining.toFixed(2)} €</p>
                               <p className="text-xs text-slate-500">von {total.toFixed(2)} €</p>
                             </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button onClick={() => openEditLoan(loan)} className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={13} /></button>
-                              <button onClick={() => deleteLoanMutation.mutate(loan.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={13} /></button>
+                            <div style={{ display: 'flex', gap: '2px' }}>
+                              <button onClick={() => openEditLoan(loan)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Edit size={13} /></button>
+                              <button onClick={() => deleteLoanMutation.mutate(loan.id)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Trash2 size={13} /></button>
                             </div>
                           </div>
                         </div>
