@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, TrendingUp, TrendingDown, Euro, FileText, Trash2, Edit, Loader2,
-  Receipt, CreditCard, AlertCircle, CheckCircle2, Clock, ShoppingCart, Landmark, Wallet
+  Receipt, CreditCard, AlertCircle, CheckCircle2, Clock, ShoppingCart, Landmark, Wallet,
+  Copy, Check, Hash
 } from 'lucide-react';
+import useAuth from '../stores/auth';
 import { format, differenceInMonths, parseISO } from 'date-fns';
 import { de } from 'date-fns/locale';
 import Modal from '../components/Modal';
@@ -20,7 +22,7 @@ const LOAN_TYPES = [
 
 const emptyItem = { title: '', amount: '', type: 'expense', category: 'Sonstiges', date: new Date().toISOString().split('T')[0], description: '' };
 const emptyContract = { title: '', company: '', amount: '', billing_cycle: 'monthly', start_date: '', end_date: '', category: 'Sonstiges', status: 'active', notes: '' };
-const emptyLoan = { title: '', lender: '', type: 'loan', total_amount: '', remaining_amount: '', monthly_rate: '', interest_rate: '', start_date: '', end_date: '', status: 'active', notes: '' };
+const emptyLoan = { title: '', lender: '', creditor: '', reference_number: '', type: 'loan', total_amount: '', remaining_amount: '', monthly_rate: '', interest_rate: '', start_date: '', end_date: '', status: 'active', notes: '' };
 
 function ProgressBar({ value, max, color = 'orange' }) {
   const pct = max > 0 ? Math.min(100, Math.max(0, ((max - value) / max) * 100)) : 0;
@@ -49,8 +51,32 @@ function LoanStatusBadge({ status }) {
   return <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${s.cls}`}>{s.label}</span>;
 }
 
+/* ── Copy-Button für Verwendungszweck ── */
+function CopyPurposeButton({ loan, username }) {
+  const [copied, setCopied] = useState(false);
+  if (!loan.reference_number) return null;
+  const purpose = `${loan.reference_number} ${username || ''}`.trim();
+  const copy = () => {
+    navigator.clipboard.writeText(purpose).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <button
+      onClick={copy}
+      title={`Verwendungszweck kopieren: ${purpose}`}
+      style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: copied ? 'rgba(34,197,94,0.15)' : 'rgba(249,115,22,0.1)', color: copied ? '#22c55e' : '#f97316', border: 'none', borderRadius: '8px', fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+    >
+      {copied ? <Check size={12} /> : <Copy size={12} />}
+      {copied ? 'Kopiert!' : 'Verwendungszweck'}
+    </button>
+  );
+}
+
 export default function Finance() {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [tab, setTab] = useState('overview');
   const [showItem, setShowItem] = useState(false);
   const [showContract, setShowContract] = useState(false);
@@ -94,7 +120,7 @@ export default function Finance() {
 
   const openEditItem = it => { setEditItem(it); setItemForm({ ...it }); setShowItem(true); };
   const openEditContract = c => { setEditContract(c); setContractForm({ ...c }); setShowContract(true); };
-  const openEditLoan = l => { setEditLoan(l); setLoanForm({ ...l, total_amount: l.total_amount || '', remaining_amount: l.remaining_amount ?? '', monthly_rate: l.monthly_rate || '', interest_rate: l.interest_rate || '', start_date: l.start_date || '', end_date: l.end_date || '' }); setShowLoan(true); };
+  const openEditLoan = l => { setEditLoan(l); setLoanForm({ ...l, total_amount: l.total_amount || '', remaining_amount: l.remaining_amount ?? '', monthly_rate: l.monthly_rate || '', interest_rate: l.interest_rate || '', start_date: l.start_date || '', end_date: l.end_date || '', reference_number: l.reference_number || '', creditor: l.creditor || '', lender: l.lender || '' }); setShowLoan(true); };
 
   const totalMonthly = (summary?.loans_monthly || 0) + (summary?.contracts_total || 0);
 
@@ -270,25 +296,33 @@ export default function Finance() {
                     const monthsLeft = loan.end_date ? differenceInMonths(new Date(loan.end_date), new Date()) : null;
 
                     return (
-                      <div key={loan.id} className="px-4 py-4 hover:bg-[#262626] transition-colors group">
-                        <div className="flex items-start justify-between gap-3 mb-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <p className="text-sm font-medium text-white">{loan.title}</p>
+                      <div key={loan.id} style={{ padding: '16px', borderTop: '1px solid #2a2a2a' }}>
+                        {/* Aktenzeichen — prominent oben */}
+                        {loan.reference_number && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '8px 12px', background: 'rgba(249,115,22,0.08)', borderRadius: '10px', border: '1px solid rgba(249,115,22,0.2)' }}>
+                            <Hash size={13} color="#f97316" style={{ flexShrink: 0 }} />
+                            <span style={{ fontSize: '13px', fontWeight: 700, color: '#f97316', flex: 1, letterSpacing: '0.03em' }}>{loan.reference_number}</span>
+                            <CopyPurposeButton loan={loan} username={user?.username} />
+                          </div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '4px' }}>
+                              <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0 }}>{loan.title}</p>
                               <LoanStatusBadge status={loan.status} />
                             </div>
-                            <p className="text-xs text-slate-500">
-                              {loan.lender && `${loan.lender} · `}
+                            <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                              {(loan.creditor || loan.lender) && `${loan.creditor || loan.lender} · `}
                               {loan.interest_rate > 0 && `${loan.interest_rate}% p.a. · `}
                               {loan.start_date && `ab ${format(new Date(loan.start_date), 'd. MMM yyyy', { locale: de })}`}
                               {loan.end_date && ` bis ${format(new Date(loan.end_date), 'd. MMM yyyy', { locale: de })}`}
                               {monthsLeft !== null && monthsLeft > 0 && ` · noch ${monthsLeft} Monate`}
                             </p>
                           </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="text-right">
-                              <p className="text-sm font-bold text-rose-400">{remaining.toFixed(2)} €</p>
-                              <p className="text-xs text-slate-500">von {total.toFixed(2)} €</p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                            <div style={{ textAlign: 'right' }}>
+                              <p style={{ fontSize: '14px', fontWeight: 700, color: '#f43f5e', margin: 0 }}>{remaining.toFixed(2)} €</p>
+                              <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>von {total.toFixed(2)} €</p>
                             </div>
                             <div style={{ display: 'flex', gap: '2px' }}>
                               <button onClick={() => openEditLoan(loan)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0 }}><Edit size={13} /></button>
@@ -471,8 +505,27 @@ export default function Finance() {
             <input className="w-full px-3.5 py-2.5 text-sm" placeholder={loanForm.type === 'loan' ? 'z.B. Autokredit, Studentenkredit...' : loanForm.type === 'debt' ? 'z.B. Schulden bei Max...' : 'z.B. iPhone 16 Ratenkauf...'} value={loanForm.title} onChange={e => setLoanForm(f => ({ ...f, title: e.target.value }))} />
           </div>
 
-          <div><label className="block text-sm text-slate-400 mb-1.5">{loanForm.type === 'debt' ? 'Gläubiger (Person/Firma)' : 'Bank / Anbieter'}</label>
-            <input className="w-full px-3.5 py-2.5 text-sm" placeholder={loanForm.type === 'loan' ? 'z.B. Deutsche Bank' : loanForm.type === 'debt' ? 'z.B. Familie Müller' : 'z.B. MediaMarkt'} value={loanForm.lender} onChange={e => setLoanForm(f => ({ ...f, lender: e.target.value }))} />
+          <div><label className="block text-sm text-slate-400 mb-1.5">{loanForm.type === 'debt' ? 'Gläubiger (Person/Firma) *' : 'Bank / Anbieter'}</label>
+            <input className="w-full px-3.5 py-2.5 text-sm" placeholder={loanForm.type === 'loan' ? 'z.B. Deutsche Bank' : loanForm.type === 'debt' ? 'z.B. Familie Müller, Finanzamt...' : 'z.B. MediaMarkt'} value={loanForm.creditor || loanForm.lender} onChange={e => setLoanForm(f => ({ ...f, creditor: e.target.value, lender: e.target.value }))} />
+          </div>
+
+          {/* Aktenzeichen — nur bei Schulden und Kredit relevant */}
+          <div className="col-span-1 sm:col-span-2">
+            <label className="block text-sm text-slate-400 mb-1.5" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ display: 'inline-flex', padding: '1px 6px', background: 'rgba(249,115,22,0.15)', color: '#f97316', borderRadius: '6px', fontSize: '11px', fontWeight: 700 }}>AZ</span>
+              Aktenzeichen / Referenz-ID {loanForm.type === 'debt' && <span style={{ color: '#ef4444', marginLeft: '2px' }}>*</span>}
+            </label>
+            <input
+              className="w-full px-3.5 py-2.5 text-sm"
+              placeholder="z.B. 2024-DE-123456, AZ-2024/789..."
+              value={loanForm.reference_number}
+              onChange={e => setLoanForm(f => ({ ...f, reference_number: e.target.value }))}
+            />
+            {loanForm.reference_number && (
+              <div style={{ marginTop: '6px', padding: '8px 12px', background: 'rgba(249,115,22,0.06)', border: '1px solid rgba(249,115,22,0.15)', borderRadius: '8px', fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <span>Verwendungszweck: <strong style={{ color: '#f97316' }}>{loanForm.reference_number} {user?.username || ''}</strong></span>
+              </div>
+            )}
           </div>
 
           <div><label className="block text-sm text-slate-400 mb-1.5">Status</label>

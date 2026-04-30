@@ -160,12 +160,33 @@ db.exec(`
     created_by INTEGER REFERENCES users(id),
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS grocery_receipts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    merchant TEXT NOT NULL,
+    date DATE NOT NULL,
+    total_amount REAL NOT NULL,
+    notes TEXT,
+    created_by INTEGER REFERENCES users(id),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS grocery_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    receipt_id INTEGER REFERENCES grocery_receipts(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    price REAL DEFAULT 0,
+    quantity REAL DEFAULT 1
+  );
 `);
 
 // Migrations for existing databases
 try { db.exec(`ALTER TABLE groups ADD COLUMN invite_code TEXT`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN apple_id TEXT`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'email'`); } catch {}
+// Debt management fields
+try { db.exec(`ALTER TABLE loans ADD COLUMN reference_number TEXT`); } catch {}
+try { db.exec(`ALTER TABLE loans ADD COLUMN creditor TEXT`); } catch {}
 
 // Generate invite codes for groups that don't have one
 const groupsWithoutCode = db.prepare('SELECT id FROM groups WHERE invite_code IS NULL').all();

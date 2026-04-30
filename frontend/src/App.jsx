@@ -13,6 +13,7 @@ import Documents from './pages/Documents';
 import Vault from './pages/Vault';
 import Calendar from './pages/Calendar';
 import GroupView from './pages/GroupView';
+import Groceries from './pages/Groceries';
 
 function ProtectedRoute({ children }) {
   const { token, isLoading } = useAuth();
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="documents" element={<Documents />} />
         <Route path="vault" element={<Vault />} />
         <Route path="calendar" element={<Calendar />} />
+        <Route path="groceries" element={<Groceries />} />
 
         {/* Gruppen — direkter Tab-Zugriff aus der Sidebar */}
         <Route path="groups/:groupId" element={<GroupView />} />

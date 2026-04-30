@@ -65,19 +65,21 @@ router.get('/loans', auth, (req, res) => {
 });
 
 router.post('/loans', auth, (req, res) => {
-  const { title, lender, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
+  const { title, lender, creditor, reference_number, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
   if (!title || !total_amount) return res.status(400).json({ error: 'Titel und Gesamtbetrag erforderlich' });
   const result = db.prepare(
-    'INSERT INTO loans (title, lender, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  ).run(title, lender || null, type || 'loan', total_amount, remaining_amount ?? total_amount, monthly_rate || 0, interest_rate || 0, start_date || null, end_date || null, status || 'active', notes || null, req.user.id);
+    `INSERT INTO loans (title, lender, creditor, reference_number, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(title, lender || null, creditor || null, reference_number || null, type || 'loan', total_amount, remaining_amount ?? total_amount, monthly_rate || 0, interest_rate || 0, start_date || null, end_date || null, status || 'active', notes || null, req.user.id);
   res.json(db.prepare('SELECT * FROM loans WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.put('/loans/:id', auth, (req, res) => {
-  const { title, lender, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
+  const { title, lender, creditor, reference_number, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
   db.prepare(
-    'UPDATE loans SET title=?, lender=?, type=?, total_amount=?, remaining_amount=?, monthly_rate=?, interest_rate=?, start_date=?, end_date=?, status=?, notes=? WHERE id=? AND created_by=?'
-  ).run(title, lender || null, type, total_amount, remaining_amount, monthly_rate || 0, interest_rate || 0, start_date || null, end_date || null, status, notes || null, req.params.id, req.user.id);
+    `UPDATE loans SET title=?, lender=?, creditor=?, reference_number=?, type=?, total_amount=?, remaining_amount=?, monthly_rate=?, interest_rate=?, start_date=?, end_date=?, status=?, notes=?
+     WHERE id=? AND created_by=?`
+  ).run(title, lender || null, creditor || null, reference_number || null, type, total_amount, remaining_amount, monthly_rate || 0, interest_rate || 0, start_date || null, end_date || null, status, notes || null, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM loans WHERE id = ?').get(req.params.id));
 });
 

@@ -34,6 +34,7 @@ app.use('/api/documents', require('./routes/documents'));
 app.use('/api/document-categories', require('./routes/documents')); // alias
 app.use('/api/vault', require('./routes/vault'));
 app.use('/api/calendar', require('./routes/calendar'));
+app.use('/api/grocery', require('./routes/grocery'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 

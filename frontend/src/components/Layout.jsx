@@ -14,6 +14,7 @@ function usePageTitle() {
   if (pathname.startsWith('/documents')) return 'Dokumente';
   if (pathname.startsWith('/vault'))     return 'Tresor';
   if (pathname.startsWith('/calendar'))  return 'Kalender';
+  if (pathname.startsWith('/groceries')) return 'Einkäufe';
   if (pathname.startsWith('/groups/'))   return 'Gruppe';
   if (pathname.startsWith('/groups'))    return 'Gruppen';
   if (pathname.startsWith('/profile'))   return 'Profil';

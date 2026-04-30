@@ -4,18 +4,19 @@ import { useQuery } from '@tanstack/react-query';
 import {
   LayoutDashboard, Users, CheckSquare, Euro, FileText,
   KeyRound, Calendar, User, LogOut, Home, Briefcase, Star,
-  ChevronDown, ChevronRight, Plus, X, PanelLeftClose, PanelLeftOpen
+  ChevronDown, ChevronRight, Plus, X, PanelLeftClose, PanelLeftOpen, ShoppingCart
 } from 'lucide-react';
 import useAuth from '../stores/auth';
 import api from '../api/client';
 
 const personalNav = [
-  { to: '/',          icon: LayoutDashboard, label: 'Dashboard', exact: true },
-  { to: '/tasks',     icon: CheckSquare,     label: 'Aufgaben'             },
-  { to: '/finance',   icon: Euro,            label: 'Finanzen'             },
-  { to: '/documents', icon: FileText,        label: 'Dokumente'            },
-  { to: '/vault',     icon: KeyRound,        label: 'Tresor'               },
-  { to: '/calendar',  icon: Calendar,        label: 'Kalender'             },
+  { to: '/',           icon: LayoutDashboard, label: 'Dashboard', exact: true },
+  { to: '/tasks',      icon: CheckSquare,     label: 'Aufgaben'             },
+  { to: '/finance',    icon: Euro,            label: 'Finanzen'             },
+  { to: '/groceries',  icon: ShoppingCart,    label: 'Einkäufe'            },
+  { to: '/documents',  icon: FileText,        label: 'Dokumente'            },
+  { to: '/vault',      icon: KeyRound,        label: 'Tresor'               },
+  { to: '/calendar',   icon: Calendar,        label: 'Kalender'             },
 ];
 
 const groupSubNav = [
