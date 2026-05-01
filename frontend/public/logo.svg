@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <radialGradient id="bg" cx="40%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#2a2a2a"/>
+      <stop offset="100%" stop-color="#141414"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="100" cy="100" r="100" fill="url(#bg)"/>
+  <!-- G outer arc (C-shape, clockwise from top to right) -->
+  <path d="M 100 38 A 62 62 0 1 0 162 100" stroke="#f97316" stroke-width="10" stroke-linecap="round" filter="url(#glow)"/>
+  <!-- Horizontal crossbar -->
+  <line x1="162" y1="100" x2="106" y2="100" stroke="#f97316" stroke-width="10" stroke-linecap="round" filter="url(#glow)"/>
+  <!-- Short downward bar -->
+  <line x1="106" y1="100" x2="106" y2="128" stroke="#f97316" stroke-width="10" stroke-linecap="round" filter="url(#glow)"/>
+  <!-- Circuit dots -->
+  <circle cx="100" cy="38" r="9" fill="#f97316" filter="url(#glow)"/>
+  <circle cx="162" cy="100" r="9" fill="#f97316" filter="url(#glow)"/>
+  <circle cx="46" cy="62" r="6" fill="#f97316" filter="url(#glow)"/>
+</svg>

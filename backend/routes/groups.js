@@ -104,4 +104,39 @@ router.delete('/:id/members/:userId', auth, (req, res) => {
   res.json({ success: true });
 });
 
+// ── ROLLE ÄNDERN (nur Admin) ──────────────────────────────────────────────────
+router.patch('/:id/members/:userId/role', auth, (req, res) => {
+  const admin = db.prepare('SELECT * FROM group_members WHERE group_id = ? AND user_id = ? AND role = ?').get(req.params.id, req.user.id, 'admin');
+  if (!admin) return res.status(403).json({ error: 'Nur Admins können Rollen ändern' });
+  if (parseInt(req.params.userId) === req.user.id) return res.status(400).json({ error: 'Eigene Rolle kann nicht geändert werden' });
+  const { role } = req.body;
+  if (!['admin', 'member'].includes(role)) return res.status(400).json({ error: 'Ungültige Rolle' });
+  db.prepare('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?').run(role, req.params.id, req.params.userId);
+  res.json({ success: true });
+});
+
+// ── CHAT: Nachrichten laden ───────────────────────────────────────────────────
+router.get('/:id/chat', auth, (req, res) => {
+  const member = db.prepare('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Kein Zugriff' });
+  const messages = db.prepare(`
+    SELECT gm.*, u.username, u.avatar
+    FROM group_messages gm JOIN users u ON gm.user_id = u.id
+    WHERE gm.group_id = ?
+    ORDER BY gm.created_at ASC LIMIT 200
+  `).all(req.params.id);
+  res.json(messages);
+});
+
+// ── CHAT: Nachricht senden ────────────────────────────────────────────────────
+router.post('/:id/chat', auth, (req, res) => {
+  const member = db.prepare('SELECT * FROM group_members WHERE group_id = ? AND user_id = ?').get(req.params.id, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Kein Zugriff' });
+  const { content } = req.body;
+  if (!content?.trim()) return res.status(400).json({ error: 'Nachricht erforderlich' });
+  const result = db.prepare('INSERT INTO group_messages (group_id, user_id, content) VALUES (?, ?, ?)').run(req.params.id, req.user.id, content.trim());
+  const message = db.prepare('SELECT gm.*, u.username, u.avatar FROM group_messages gm JOIN users u ON gm.user_id = u.id WHERE gm.id = ?').get(result.lastInsertRowid);
+  res.json(message);
+});
+
 module.exports = router;

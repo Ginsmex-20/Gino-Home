@@ -24,7 +24,21 @@ function VaultEntry({ entry, onEdit, onDelete }) {
   const [copied, setCopied] = useState('');
 
   const copy = (text, field) => {
-    navigator.clipboard.writeText(text || '');
+    const val = text || '';
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(val);
+      } else {
+        // HTTP-Fallback (kein HTTPS)
+        const el = document.createElement('textarea');
+        el.value = val;
+        el.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+    } catch {}
     setCopied(field);
     setTimeout(() => setCopied(''), 2000);
   };

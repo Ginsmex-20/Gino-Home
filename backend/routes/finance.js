@@ -5,17 +5,22 @@ const auth = require('../middleware/auth');
 // Finance items (income/expense)
 router.get('/items', auth, (req, res) => {
   const { group_id } = req.query;
-  let query = `SELECT f.*, u.username as creator_name FROM finance_items f LEFT JOIN users u ON f.created_by = u.id WHERE f.created_by = ?`;
-  const params = [req.user.id];
-  if (group_id) { query += ' AND f.group_id = ?'; params.push(group_id); }
-  query += ' ORDER BY f.date DESC, f.created_at DESC';
-  res.json(db.prepare(query).all(...params));
+  if (group_id) {
+    const member = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+    if (!member) return res.status(403).json({ error: 'Kein Zugriff' });
+    return res.json(db.prepare('SELECT f.*, u.username as creator_name FROM finance_items f LEFT JOIN users u ON f.created_by = u.id WHERE f.group_id = ? ORDER BY f.date DESC, f.created_at DESC').all(group_id));
+  }
+  res.json(db.prepare('SELECT f.*, u.username as creator_name FROM finance_items f LEFT JOIN users u ON f.created_by = u.id WHERE f.created_by = ? AND (f.group_id IS NULL OR f.group_id = 0) ORDER BY f.date DESC, f.created_at DESC').all(req.user.id));
 });
 
 router.post('/items', auth, (req, res) => {
   const { title, amount, type, category, date, description, group_id } = req.body;
   if (!title || !amount || !type) return res.status(400).json({ error: 'Titel, Betrag und Typ erforderlich' });
-  const result = db.prepare('INSERT INTO finance_items (title, amount, type, category, date, description, group_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(title, amount, type, category, date, description, group_id, req.user.id);
+  if (group_id) {
+    const member = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+    if (!member) return res.status(403).json({ error: 'Kein Zugriff' });
+  }
+  const result = db.prepare('INSERT INTO finance_items (title, amount, type, category, date, description, group_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(title, amount, type, category, date, description, group_id || null, req.user.id);
   res.json(db.prepare('SELECT * FROM finance_items WHERE id = ?').get(result.lastInsertRowid));
 });
 
@@ -91,12 +96,17 @@ router.delete('/loans/:id', auth, (req, res) => {
 // Summary stats
 router.get('/summary', auth, (req, res) => {
   const { group_id } = req.query;
-  let baseWhere = 'WHERE created_by = ?';
-  const params = [req.user.id];
-  if (group_id) { baseWhere += ' AND group_id = ?'; params.push(group_id); }
 
-  const income = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM finance_items ${baseWhere} AND type = 'income'`).get(...params);
-  const expense = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM finance_items ${baseWhere} AND type = 'expense'`).get(...params);
+  if (group_id) {
+    const member = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+    if (!member) return res.status(403).json({ error: 'Kein Zugriff' });
+    const income = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM finance_items WHERE group_id = ? AND type = 'income'`).get(group_id);
+    const expense = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM finance_items WHERE group_id = ? AND type = 'expense'`).get(group_id);
+    return res.json({ income: income.total, expense: expense.total, balance: income.total - expense.total, contracts_total: 0, active_contracts: 0, loans_remaining: 0, loans_monthly: 0, active_loans: 0 });
+  }
+
+  const income = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM finance_items WHERE created_by = ? AND (group_id IS NULL OR group_id = 0) AND type = 'income'`).get(req.user.id);
+  const expense = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM finance_items WHERE created_by = ? AND (group_id IS NULL OR group_id = 0) AND type = 'expense'`).get(req.user.id);
   const contractsTotal = db.prepare(`SELECT COALESCE(SUM(amount), 0) as total FROM contracts WHERE created_by = ? AND status = 'active'`).get(req.user.id);
   const contractsCount = db.prepare(`SELECT COUNT(*) as count FROM contracts WHERE created_by = ? AND status = 'active'`).get(req.user.id);
   const loansTotal = db.prepare(`SELECT COALESCE(SUM(remaining_amount), 0) as total FROM loans WHERE created_by = ? AND status = 'active'`).get(req.user.id);

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, Plus, Trash2, UserPlus, UserMinus, Crown, Home, Briefcase, Star,
   Loader2, Copy, RefreshCw, Hash, LogIn, CheckSquare, FileText, Calendar,
-  DollarSign, ArrowLeft, Settings, Eye, Edit
+  DollarSign, ArrowLeft, MessageSquare, Send, TrendingUp, TrendingDown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -20,7 +20,6 @@ const typeBg = {
 };
 
 const statusColors = { todo: 'text-slate-400', in_progress: 'text-blue-400', done: 'text-green-400' };
-const statusLabels = { todo: 'Offen', in_progress: 'In Arbeit', done: 'Erledigt' };
 
 // ── Gruppen-Karte ────────────────────────────────────────────────────────────
 function GroupCard({ group, onSelect }) {
@@ -49,13 +48,27 @@ function GroupCard({ group, onSelect }) {
 }
 
 // ── Tab: Mitglieder ──────────────────────────────────────────────────────────
-function MembersTab({ group, members, isAdmin, user, onInvite, removeMutation, regenCodeMutation }) {
+function MembersTab({ group, members, isAdmin, user, onInvite, removeMutation, regenCodeMutation, roleMutation }) {
   const [copiedCode, setCopiedCode] = useState(false);
   const copyCode = () => {
-    navigator.clipboard.writeText(group.invite_code || '');
+    const val = group.invite_code || '';
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(val);
+      } else {
+        const el = document.createElement('textarea');
+        el.value = val;
+        el.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+      }
+    } catch {}
     setCopiedCode(true);
     setTimeout(() => setCopiedCode(false), 2000);
   };
+
   return (
     <div className="space-y-4">
       {/* Invite Code */}
@@ -83,7 +96,7 @@ function MembersTab({ group, members, isAdmin, user, onInvite, removeMutation, r
       {/* Member list */}
       <div className="space-y-2">
         {members.map(m => (
-          <div key={m.id} className="flex items-center gap-3 p-3 bg-[#161616] rounded-xl">
+          <div key={m.id} className="flex items-center gap-3 p-3 bg-[#161616] rounded-xl group">
             {m.avatar
               ? <img src={m.avatar} alt="" className="w-9 h-9 rounded-full object-cover" />
               : <div className="w-9 h-9 rounded-full bg-orange-500/15 flex items-center justify-center text-sm font-bold text-orange-500">{m.username[0].toUpperCase()}</div>}
@@ -98,10 +111,18 @@ function MembersTab({ group, members, isAdmin, user, onInvite, removeMutation, r
               {m.role === 'admin' ? 'Admin' : 'Mitglied'}
             </span>
             {m.id !== user?.id && isAdmin && (
-              <button onClick={() => removeMutation.mutate({ groupId: group.id, userId: m.id })}
-                className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
-                <UserMinus size={14} />
-              </button>
+              <>
+                <button
+                  onClick={() => roleMutation.mutate({ groupId: group.id, userId: m.id, role: m.role === 'admin' ? 'member' : 'admin' })}
+                  title={m.role === 'admin' ? 'Zu Mitglied degradieren' : 'Zum Admin befördern'}
+                  className="p-1.5 text-slate-500 hover:text-amber-400 hover:bg-amber-500/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100">
+                  <Crown size={14} />
+                </button>
+                <button onClick={() => removeMutation.mutate({ groupId: group.id, userId: m.id })}
+                  className="p-1.5 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                  <UserMinus size={14} />
+                </button>
+              </>
             )}
           </div>
         ))}
@@ -272,11 +293,6 @@ function DocumentsTab({ groupId }) {
           </div>
           <div><label className="block text-xs text-slate-400 mb-1">Titel</label>
             <input className="w-full px-3 py-2 text-sm" placeholder={file?.name || ''} value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
-          <div><label className="block text-xs text-slate-400 mb-1">Kategorie</label>
-            <select className="w-full px-3 py-2 text-sm" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-              <option value="other">Allgemein</option>
-              {categories.map(c => <option key={c.id} value={c.name}>{c.icon} {c.name}</option>)}
-            </select></div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setShowUpload(false)} className="px-4 py-2 text-sm text-slate-400">Abbrechen</button>
             <button onClick={() => uploadMutation.mutate()} disabled={!file || uploadMutation.isPending}
@@ -374,6 +390,217 @@ function CalendarTab({ groupId }) {
   );
 }
 
+// ── Tab: Chat ────────────────────────────────────────────────────────────────
+function ChatTab({ groupId, currentUser }) {
+  const qc = useQueryClient();
+  const [message, setMessage] = useState('');
+  const messagesEndRef = useRef(null);
+
+  const { data: messages = [] } = useQuery({
+    queryKey: ['group-chat', groupId],
+    queryFn: () => api.get(`/groups/${groupId}/chat`),
+    refetchInterval: 4000,
+  });
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMutation = useMutation({
+    mutationFn: content => api.post(`/groups/${groupId}/chat`, { content }),
+    onSuccess: () => { qc.invalidateQueries(['group-chat', groupId]); setMessage(''); }
+  });
+
+  const handleSend = () => {
+    if (!message.trim() || sendMutation.isPending) return;
+    sendMutation.mutate(message.trim());
+  };
+
+  const handleKey = e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '420px' }}>
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px', padding: '4px 0 12px' }}>
+        {messages.length === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, gap: '8px' }}>
+            <MessageSquare size={36} style={{ color: '#374151' }} />
+            <p style={{ color: '#4b5563', fontSize: '14px', margin: 0 }}>Noch keine Nachrichten — starte die Unterhaltung!</p>
+          </div>
+        )}
+        {messages.map(m => {
+          const isMe = m.user_id === currentUser?.id;
+          return (
+            <div key={m.id} style={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-end' }}>
+              {!isMe && (
+                m.avatar
+                  ? <img src={m.avatar} style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} alt="" />
+                  : <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'rgba(249,115,22,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold', color: '#f97316', flexShrink: 0 }}>{m.username[0].toUpperCase()}</div>
+              )}
+              <div style={{ maxWidth: '72%' }}>
+                {!isMe && <p style={{ fontSize: '11px', color: '#6b7280', margin: '0 0 3px 4px' }}>{m.username}</p>}
+                <div style={{
+                  padding: '8px 13px',
+                  borderRadius: isMe ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  background: isMe ? '#f97316' : '#1e1e1e',
+                  color: isMe ? '#fff' : '#e2e8f0',
+                  fontSize: '14px', lineHeight: '1.45',
+                  border: isMe ? 'none' : '1px solid #2a2a2a',
+                  wordBreak: 'break-word'
+                }}>
+                  {m.content}
+                </div>
+                <p style={{ fontSize: '10px', color: '#4b5563', margin: '3px 4px 0', textAlign: isMe ? 'right' : 'left' }}>
+                  {format(new Date(m.created_at), 'HH:mm', { locale: de })}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{ display: 'flex', gap: '8px', paddingTop: '8px', borderTop: '1px solid #1e1e1e' }}>
+        <input
+          value={message}
+          onChange={e => setMessage(e.target.value)}
+          onKeyDown={handleKey}
+          placeholder="Nachricht schreiben..."
+          style={{ flex: 1, padding: '10px 14px', borderRadius: '12px', background: '#1e1e1e', border: '1px solid #2a2a2a', color: '#fff', fontSize: '14px', outline: 'none' }}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!message.trim() || sendMutation.isPending}
+          style={{ padding: '10px 14px', borderRadius: '12px', background: message.trim() ? '#f97316' : '#2a2a2a', color: message.trim() ? '#fff' : '#4b5563', border: 'none', cursor: message.trim() ? 'pointer' : 'not-allowed', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.2s', flexShrink: 0 }}
+        >
+          {sendMutation.isPending ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Send size={16} />}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab: Finanzen ────────────────────────────────────────────────────────────
+function FinanceTab({ groupId }) {
+  const qc = useQueryClient();
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({ title: '', amount: '', type: 'expense', category: 'Sonstiges', date: new Date().toISOString().split('T')[0] });
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['group-finance', groupId],
+    queryFn: () => api.get(`/finance/items?group_id=${groupId}`)
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ['group-finance-summary', groupId],
+    queryFn: () => api.get(`/finance/summary?group_id=${groupId}`)
+  });
+
+  const addMutation = useMutation({
+    mutationFn: d => api.post('/finance/items', { ...d, group_id: groupId }),
+    onSuccess: () => {
+      qc.invalidateQueries(['group-finance', groupId]);
+      qc.invalidateQueries(['group-finance-summary', groupId]);
+      setShowAdd(false);
+      setForm({ title: '', amount: '', type: 'expense', category: 'Sonstiges', date: new Date().toISOString().split('T')[0] });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: id => api.delete(`/finance/items/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries(['group-finance', groupId]);
+      qc.invalidateQueries(['group-finance-summary', groupId]);
+    }
+  });
+
+  if (isLoading) return <div className="flex justify-center py-8"><Loader2 size={22} className="animate-spin text-orange-500" /></div>;
+
+  const income = summary?.income || 0;
+  const expense = summary?.expense || 0;
+  const balance = income - expense;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+      {/* Summary Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+        <div style={{ padding: '12px', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: '12px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '4px' }}>
+            <TrendingUp size={12} style={{ color: '#22c55e' }} />
+            <p style={{ fontSize: '11px', color: '#6b7280', margin: 0 }}>Einnahmen</p>
+          </div>
+          <p style={{ fontSize: '15px', fontWeight: 700, color: '#22c55e', margin: 0 }}>+{income.toFixed(2)}€</p>
+        </div>
+        <div style={{ padding: '12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '12px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px', marginBottom: '4px' }}>
+            <TrendingDown size={12} style={{ color: '#ef4444' }} />
+            <p style={{ fontSize: '11px', color: '#6b7280', margin: 0 }}>Ausgaben</p>
+          </div>
+          <p style={{ fontSize: '15px', fontWeight: 700, color: '#ef4444', margin: 0 }}>-{expense.toFixed(2)}€</p>
+        </div>
+        <div style={{ padding: '12px', background: balance >= 0 ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: `1px solid ${balance >= 0 ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)'}`, borderRadius: '12px', textAlign: 'center' }}>
+          <p style={{ fontSize: '11px', color: '#6b7280', margin: '0 0 4px' }}>Bilanz</p>
+          <p style={{ fontSize: '15px', fontWeight: 700, color: balance >= 0 ? '#22c55e' : '#ef4444', margin: 0 }}>{balance >= 0 ? '+' : ''}{balance.toFixed(2)}€</p>
+        </div>
+      </div>
+
+      <button onClick={() => setShowAdd(true)}
+        className="w-full flex items-center justify-center gap-2 py-2.5 border border-dashed border-[#3a3a3a] hover:border-orange-500/50 text-slate-500 hover:text-orange-500 rounded-xl text-sm transition-colors">
+        <Plus size={14} /> Buchung hinzufügen
+      </button>
+
+      {items.length === 0 && <p className="text-center text-slate-500 py-6 text-sm">Noch keine Buchungen in dieser Gruppe</p>}
+
+      {items.map(item => (
+        <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', background: '#161616', borderRadius: '12px' }}>
+          <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.type === 'income' ? '#22c55e' : '#ef4444', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: '14px', fontWeight: 500, color: '#fff', margin: '0 0 2px' }}>{item.title}</p>
+            <p style={{ fontSize: '11px', color: '#6b7280', margin: 0 }}>{item.creator_name} · {item.category} · {format(new Date(item.date), 'd. MMM', { locale: de })}</p>
+          </div>
+          <span style={{ fontSize: '14px', fontWeight: 600, color: item.type === 'income' ? '#22c55e' : '#ef4444', flexShrink: 0 }}>
+            {item.type === 'income' ? '+' : '-'}{parseFloat(item.amount).toFixed(2)}€
+          </span>
+          <button onClick={() => deleteMutation.mutate(item.id)} style={{ padding: '6px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '8px', lineHeight: 0, flexShrink: 0 }}>
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ))}
+
+      <Modal open={showAdd} onClose={() => setShowAdd(false)} title="Buchung hinzufügen" size="sm">
+        <div className="space-y-3">
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {[{ v: 'expense', l: '− Ausgabe', c: '#ef4444', bg: 'rgba(239,68,68,0.1)' }, { v: 'income', l: '+ Einnahme', c: '#22c55e', bg: 'rgba(34,197,94,0.1)' }].map(t => (
+              <button key={t.v} onClick={() => setForm(f => ({ ...f, type: t.v }))}
+                style={{ flex: 1, padding: '8px', borderRadius: '10px', border: `1px solid ${form.type === t.v ? t.c : '#2a2a2a'}`, background: form.type === t.v ? t.bg : '#1e1e1e', color: form.type === t.v ? t.c : '#6b7280', cursor: 'pointer', fontSize: '13px', fontWeight: 600, transition: 'all 0.15s' }}>
+                {t.l}
+              </button>
+            ))}
+          </div>
+          <div><label className="block text-xs text-slate-400 mb-1">Titel *</label>
+            <input className="w-full px-3 py-2 text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <div><label className="block text-xs text-slate-400 mb-1">Betrag (€) *</label>
+              <input type="number" step="0.01" min="0" className="w-full px-3 py-2 text-sm" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} /></div>
+            <div><label className="block text-xs text-slate-400 mb-1">Datum</label>
+              <input type="date" className="w-full px-3 py-2 text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} /></div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button onClick={() => setShowAdd(false)} className="px-4 py-2 text-sm text-slate-400">Abbrechen</button>
+            <button onClick={() => addMutation.mutate(form)} disabled={!form.title || !form.amount || addMutation.isPending}
+              className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50 flex items-center gap-2">
+              {addMutation.isPending && <Loader2 size={13} className="animate-spin" />} Speichern
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
 // ── Haupt-Komponente ─────────────────────────────────────────────────────────
 export default function Groups() {
   const { user } = useAuth();
@@ -427,6 +654,11 @@ export default function Groups() {
     onSuccess: data => { setSelected(s => ({ ...s, invite_code: data.invite_code })); qc.invalidateQueries(['groups']); }
   });
 
+  const roleMutation = useMutation({
+    mutationFn: ({ groupId, userId, role }) => api.patch(`/groups/${groupId}/members/${userId}/role`, { role }),
+    onSuccess: () => qc.invalidateQueries(['group-members', selected?.id])
+  });
+
   const selectGroup = (g) => { setSelected(g); setActiveTab('members'); };
   const isAdmin = selected && members.find(m => m.id === user?.id)?.role === 'admin';
 
@@ -435,6 +667,8 @@ export default function Groups() {
     { id: 'tasks', label: 'Aufgaben', icon: CheckSquare },
     { id: 'documents', label: 'Dokumente', icon: FileText },
     { id: 'calendar', label: 'Kalender', icon: Calendar },
+    { id: 'chat', label: 'Chat', icon: MessageSquare },
+    { id: 'finance', label: 'Finanzen', icon: DollarSign },
   ];
 
   // ── Gruppen-Detailansicht ─────────────────────────────────────────────────
@@ -462,14 +696,14 @@ export default function Groups() {
           )}
         </div>
 
-        {/* Tabs */}
+        {/* Tabs – scrollbar auf Mobile */}
         <div className="flex gap-1 bg-[#1a1a1a] p-1 rounded-xl overflow-x-auto">
           {TABS.map(tab => {
             const Icon = tab.icon;
             return (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex-1 justify-center ${activeTab === tab.id ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-white hover:bg-[#2a2a2a]'}`}>
-                <Icon size={14} />{tab.label}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex-1 justify-center ${activeTab === tab.id ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-white hover:bg-[#2a2a2a]'}`}>
+                <Icon size={13} />{tab.label}
               </button>
             );
           })}
@@ -480,11 +714,13 @@ export default function Groups() {
           {activeTab === 'members' && (
             <MembersTab group={selected} members={members} isAdmin={isAdmin} user={user}
               onInvite={() => { setShowInviteEmail(true); setError(''); }}
-              removeMutation={removeMutation} regenCodeMutation={regenCodeMutation} />
+              removeMutation={removeMutation} regenCodeMutation={regenCodeMutation} roleMutation={roleMutation} />
           )}
           {activeTab === 'tasks' && <TasksTab groupId={selected.id} />}
           {activeTab === 'documents' && <DocumentsTab groupId={selected.id} />}
           {activeTab === 'calendar' && <CalendarTab groupId={selected.id} />}
+          {activeTab === 'chat' && <ChatTab groupId={selected.id} currentUser={user} />}
+          {activeTab === 'finance' && <FinanceTab groupId={selected.id} />}
         </div>
 
         {/* Invite Modal */}

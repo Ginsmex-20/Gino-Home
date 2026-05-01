@@ -31,7 +31,7 @@ const sendWelcome = async (to, username) => {
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#161616;color:#fff;border-radius:16px;padding:32px">
           <div style="text-align:center;margin-bottom:24px">
-            <div style="width:56px;height:56px;background:#f97316;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:28px">🏠</div>
+            <div style="width:64px;height:64px;background:#1a1a1a;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:40px;font-weight:900;font-family:Georgia,serif;color:#f97316;border:2px solid #2a2a2a;box-shadow:0 0 24px rgba(249,115,22,0.45)">G</div>
             <h1 style="margin:16px 0 4px;font-size:22px">Willkommen, ${username}!</h1>
             <p style="color:#94a3b8;margin:0">Dein Gino-Home Konto wurde erstellt</p>
           </div>
@@ -97,7 +97,7 @@ const sendInvite = async (to, username, tempCode) => {
       html: `
         <div style="font-family:sans-serif;max-width:480px;margin:0 auto;background:#161616;color:#fff;border-radius:16px;padding:32px">
           <div style="text-align:center;margin-bottom:24px">
-            <div style="width:56px;height:56px;background:#f97316;border-radius:14px;display:inline-flex;align-items:center;justify-content:center;font-size:28px">🏠</div>
+            <div style="width:64px;height:64px;background:#1a1a1a;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:40px;font-weight:900;font-family:Georgia,serif;color:#f97316;border:2px solid #2a2a2a;box-shadow:0 0 24px rgba(249,115,22,0.45)">G</div>
             <h1 style="margin:16px 0 4px;font-size:22px">Willkommen, ${username}!</h1>
             <p style="color:#94a3b8;margin:0">Du wurdest zu Gino-Home eingeladen</p>
           </div>

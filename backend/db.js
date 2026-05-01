@@ -191,6 +191,15 @@ try { db.exec(`ALTER TABLE loans ADD COLUMN creditor TEXT`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0`); } catch {}
 try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 
+// Chat messages for groups
+try { db.exec(`CREATE TABLE IF NOT EXISTS group_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  content TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 // Generate invite codes for groups that don't have one
 const groupsWithoutCode = db.prepare('SELECT id FROM groups WHERE invite_code IS NULL').all();
 for (const g of groupsWithoutCode) {

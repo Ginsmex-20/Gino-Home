@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Home, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
 import useAuth from '../stores/auth';
 
@@ -57,14 +57,7 @@ export default function Login() {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <div style={{
-            width: '56px', height: '56px', borderRadius: '18px',
-            background: '#f97316', display: 'flex', alignItems: 'center',
-            justifyContent: 'center', margin: '0 auto 12px',
-            boxShadow: '0 8px 32px rgba(249,115,22,0.3)',
-          }}>
-            <Home size={28} color="#fff" />
-          </div>
+          <img src="/logo.svg" alt="Gino-Home" style={{ width: '72px', height: '72px', margin: '0 auto 12px', display: 'block', filter: 'drop-shadow(0 0 16px rgba(249,115,22,0.5))' }} />
           <h1 style={{ margin: '0 0 4px', color: '#fff', fontSize: '22px', fontWeight: 700 }}>Gino-Home</h1>
           <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>Willkommen zurück</p>
         </div>
