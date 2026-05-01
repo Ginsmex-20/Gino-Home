@@ -1,11 +1,11 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   CheckSquare, FileText, Calendar as CalIcon, Users, ArrowLeft,
   Plus, Trash2, Loader2, UserMinus, Crown, Hash, RefreshCw, Copy,
   Edit, Upload, Search, Download, Image, File, Clock, Home,
-  ChevronLeft, ChevronRight, Briefcase, Star
+  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -15,6 +15,7 @@ import { de } from 'date-fns/locale';
 import Modal from '../components/Modal';
 import api from '../api/client';
 import useAuth from '../stores/auth';
+import { getSocket } from '../api/socket';
 
 // ── Shared constants ─────────────────────────────────────────────────────────
 const STATUS_OPTS = [
@@ -32,9 +33,9 @@ const CATS     = ['Alle', 'Vertrag', 'Rechnung', 'Ausweis', 'Versicherung', 'Ste
 const CAT_VALS = ['contract', 'invoice', 'identity', 'insurance', 'tax', 'other'];
 const COLORS   = ['#f97316','#2563eb','#16a34a','#dc2626','#d97706','#db2777','#0891b2'];
 
-const typeIcons = { household: Home, work: Briefcase, general: Star };
+const typeIcons  = { household: Home, work: Briefcase, general: Star };
 const typeLabels = { household: 'Haushalt', work: 'Arbeit', general: 'Allgemein' };
-const typeBg = {
+const typeBg     = {
   household: 'bg-green-500/10 text-green-400',
   work:      'bg-blue-500/10 text-blue-400',
   general:   'bg-orange-500/10 text-orange-500',
@@ -57,7 +58,7 @@ function formatSize(b) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB: AUFGABEN — Kanban wie persönliche Tasks-Seite
+// TAB: AUFGABEN
 // ════════════════════════════════════════════════════════════════════════════
 function TasksTab({ groupId, groupName }) {
   const qc = useQueryClient();
@@ -108,7 +109,6 @@ function TasksTab({ groupId, groupName }) {
         </button>
       </div>
 
-      {/* Kanban Board — horizontal scroll auf Mobil */}
       <div className="kanban-scroll md:grid md:grid-cols-2 xl:grid-cols-4">
         {STATUS_OPTS.map(({ value, label, color }) => (
           <div key={value} className="kanban-col md:min-w-0 bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4">
@@ -150,7 +150,6 @@ function TasksTab({ groupId, groupName }) {
         ))}
       </div>
 
-      {/* Modal */}
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditing(null); }} title={editing ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'} size="lg">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="col-span-1 sm:col-span-2"><label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
@@ -186,7 +185,7 @@ function TasksTab({ groupId, groupName }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB: DOKUMENTE — wie persönliche Dokumente-Seite
+// TAB: DOKUMENTE
 // ════════════════════════════════════════════════════════════════════════════
 function DocumentsTab({ groupId }) {
   const qc = useQueryClient();
@@ -241,7 +240,6 @@ function DocumentsTab({ groupId }) {
 
   return (
     <div className="space-y-5">
-      {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-slate-500">{docs.length} Dokument{docs.length !== 1 ? 'e' : ''} in dieser Gruppe</p>
         <button onClick={() => setShowUpload(true)}
@@ -250,7 +248,6 @@ function DocumentsTab({ groupId }) {
         </button>
       </div>
 
-      {/* Search + Category Filter */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-48">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -266,7 +263,6 @@ function DocumentsTab({ groupId }) {
         </div>
       </div>
 
-      {/* List */}
       {filtered.length === 0 ? (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-12 text-center">
           <FileText size={40} className="text-slate-600 mx-auto mb-3" />
@@ -296,7 +292,6 @@ function DocumentsTab({ groupId }) {
         </div>
       )}
 
-      {/* Upload Modal */}
       <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Dokument hochladen">
         <div className="space-y-4">
           <div onClick={() => fileRef.current?.click()}
@@ -325,7 +320,6 @@ function DocumentsTab({ groupId }) {
         </div>
       </Modal>
 
-      {/* Edit Modal */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Dokument bearbeiten" size="sm">
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
@@ -348,7 +342,7 @@ function DocumentsTab({ groupId }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB: KALENDER — identisch zur persönlichen Kalender-Seite
+// TAB: KALENDER
 // ════════════════════════════════════════════════════════════════════════════
 function CalendarTab({ groupId }) {
   const qc = useQueryClient();
@@ -410,7 +404,6 @@ function CalendarTab({ groupId }) {
         </button>
       </div>
 
-      {/* Kalender-Grid */}
       <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-[#2a2a2a]">
           <button onClick={() => setCurrentDate(d => subMonths(d, 1))} className="p-2 hover:bg-[#2a2a2a] rounded-lg transition-colors text-slate-400 hover:text-white"><ChevronLeft size={18} /></button>
@@ -446,7 +439,6 @@ function CalendarTab({ groupId }) {
         </div>
       </div>
 
-      {/* Tages-Detail */}
       {selectedDay && (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
@@ -478,7 +470,6 @@ function CalendarTab({ groupId }) {
         </div>
       )}
 
-      {/* Modal */}
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditing(null); }} title={editing ? 'Termin bearbeiten' : 'Neuer Termin'}>
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel *</label><input className="w-full px-3.5 py-2.5 text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
@@ -516,9 +507,9 @@ function CalendarTab({ groupId }) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB: MITGLIEDER
+// TAB: MITGLIEDER (mit Rollenverwaltung)
 // ════════════════════════════════════════════════════════════════════════════
-function MembersTab({ group, members, isAdmin, user, removeMutation, regenCodeMutation, onInvite }) {
+function MembersTab({ group, members, isAdmin, user, removeMutation, regenCodeMutation, roleMutation, onInvite }) {
   const [copiedCode, setCopiedCode] = useState(false);
   const copyCode = () => { navigator.clipboard.writeText(group?.invite_code || ''); setCopiedCode(true); setTimeout(() => setCopiedCode(false), 2000); };
 
@@ -575,10 +566,20 @@ function MembersTab({ group, members, isAdmin, user, removeMutation, regenCodeMu
                 {m.role === 'admin' ? 'Admin' : 'Mitglied'}
               </span>
               {m.id !== user?.id && isAdmin && (
-                <button onClick={() => removeMutation.mutate({ groupId: group.id, userId: m.id })}
-                  className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
-                  <UserMinus size={15} />
-                </button>
+                <div className="flex gap-1">
+                  {/* Rolle ändern */}
+                  <button
+                    onClick={() => roleMutation.mutate({ groupId: group.id, userId: m.id, role: m.role === 'admin' ? 'member' : 'admin' })}
+                    title={m.role === 'admin' ? 'Zum Mitglied herabstufen' : 'Zum Admin befördern'}
+                    className={`p-2 rounded-lg transition-colors ${m.role === 'admin' ? 'text-amber-400 hover:bg-amber-500/10' : 'text-slate-500 hover:text-amber-400 hover:bg-amber-500/10'}`}>
+                    <Crown size={14} />
+                  </button>
+                  {/* Entfernen */}
+                  <button onClick={() => removeMutation.mutate({ groupId: group.id, userId: m.id })}
+                    className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
+                    <UserMinus size={15} />
+                  </button>
+                </div>
               )}
             </div>
           ))}
@@ -589,13 +590,300 @@ function MembersTab({ group, members, isAdmin, user, removeMutation, regenCodeMu
 }
 
 // ════════════════════════════════════════════════════════════════════════════
+// TAB: CHAT (Echtzeit via Socket.io)
+// ════════════════════════════════════════════════════════════════════════════
+function ChatTab({ groupId }) {
+  const { user } = useAuth();
+  const [messages, setMessages] = useState([]);
+  const [text, setText]         = useState('');
+  const [sending, setSending]   = useState(false);
+  const bottomRef = useRef(null);
+
+  // Nachrichten beim Laden holen
+  useEffect(() => {
+    api.get(`/groups/${groupId}/chat`)
+      .then(msgs => setMessages(Array.isArray(msgs) ? msgs : []))
+      .catch(() => {});
+  }, [groupId]);
+
+  // Socket: Echtzeit-Nachrichten empfangen
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handler = ({ groupId: gId, message: msg }) => {
+      if (parseInt(gId) !== parseInt(groupId)) return;
+      setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+    };
+    socket.on('chat:message', handler);
+    return () => socket.off('chat:message', handler);
+  }, [groupId]);
+
+  // Auto-Scroll ans Ende
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const send = async () => {
+    if (!text.trim() || sending) return;
+    const content = text.trim();
+    setText('');
+    setSending(true);
+    try {
+      const msg = await api.post(`/groups/${groupId}/chat`, { content });
+      // Eigene Nachricht direkt einfügen (Server emittiert sie nicht zurück)
+      setMessages(prev => prev.some(m => m.id === msg.id) ? prev : [...prev, msg]);
+    } catch {
+      setText(content); // Bei Fehler wieder einsetzen
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: '520px',
+      background: '#1e1e1e',
+      borderRadius: '16px',
+      border: '1px solid #2a2a2a',
+      overflow: 'hidden',
+    }}>
+      {/* Nachrichten-Liste */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {messages.length === 0 && (
+          <div style={{ margin: 'auto', textAlign: 'center', color: '#475569' }}>
+            <Hash size={36} style={{ margin: '0 auto 10px', opacity: 0.25 }} />
+            <p style={{ fontSize: '14px' }}>Noch keine Nachrichten. Schreib die erste!</p>
+          </div>
+        )}
+        {messages.map(m => {
+          const isOwn = m.user_id === user?.id;
+          return (
+            <div key={m.id} style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-end' }}>
+              {!isOwn && (
+                <div style={{
+                  width: 30, height: 30, borderRadius: '50%',
+                  background: 'rgba(249,115,22,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '12px', fontWeight: 700, color: '#f97316', flexShrink: 0,
+                }}>
+                  {(m.username || '?')[0].toUpperCase()}
+                </div>
+              )}
+              <div style={{ maxWidth: '72%' }}>
+                {!isOwn && (
+                  <p style={{ fontSize: '11px', color: '#64748b', marginBottom: '2px', marginLeft: '4px' }}>{m.username}</p>
+                )}
+                <div style={{
+                  padding: '9px 13px',
+                  borderRadius: isOwn ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
+                  background: isOwn ? '#f97316' : '#2a2a2a',
+                  color: '#fff', fontSize: '14px', wordBreak: 'break-word', lineHeight: 1.45,
+                }}>
+                  {m.content}
+                </div>
+                <p style={{ fontSize: '10px', color: '#374151', marginTop: '3px', textAlign: isOwn ? 'right' : 'left', paddingInline: '4px' }}>
+                  {format(new Date(m.created_at), 'HH:mm', { locale: de })}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Eingabefeld */}
+      <div style={{ padding: '12px 14px', borderTop: '1px solid #2a2a2a', display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+          placeholder="Nachricht schreiben..."
+          disabled={sending}
+          style={{
+            flex: 1, padding: '10px 14px', borderRadius: '12px',
+            background: '#2a2a2a', border: '1px solid #333', color: '#fff',
+            fontSize: '14px', outline: 'none',
+          }}
+        />
+        <button
+          onClick={send}
+          disabled={!text.trim() || sending}
+          style={{
+            padding: '10px 14px', borderRadius: '12px',
+            background: text.trim() && !sending ? '#f97316' : '#2a2a2a',
+            border: 'none', color: text.trim() && !sending ? '#fff' : '#475569',
+            cursor: text.trim() && !sending ? 'pointer' : 'not-allowed',
+            transition: 'all 0.15s', display: 'flex', alignItems: 'center',
+          }}
+        >
+          <Send size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB: FINANZEN (Gruppen-Budget)
+// ════════════════════════════════════════════════════════════════════════════
+function FinanceTab({ groupId, isAdmin, user }) {
+  const qc = useQueryClient();
+  const [showModal, setShowModal] = useState(false);
+  const emptyForm = { title: '', amount: '', type: 'expense', category: '', date: format(new Date(), 'yyyy-MM-dd') };
+  const [form, setForm] = useState(emptyForm);
+
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ['group-finance', groupId],
+    queryFn:  () => api.get(`/finance/items?group_id=${groupId}`)
+  });
+
+  const { data: summary } = useQuery({
+    queryKey: ['group-finance-summary', groupId],
+    queryFn:  () => api.get(`/finance/summary?group_id=${groupId}`)
+  });
+
+  const addMutation = useMutation({
+    mutationFn: data => api.post('/finance/items', { ...data, group_id: groupId }),
+    onSuccess:  () => {
+      qc.invalidateQueries(['group-finance', groupId]);
+      qc.invalidateQueries(['group-finance-summary', groupId]);
+      setShowModal(false);
+      setForm(emptyForm);
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: id => api.delete(`/finance/items/${id}`),
+    onSuccess:  () => {
+      qc.invalidateQueries(['group-finance', groupId]);
+      qc.invalidateQueries(['group-finance-summary', groupId]);
+    }
+  });
+
+  const income  = summary?.income  ?? items.filter(i => i.type === 'income').reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+  const expense = summary?.expense ?? items.filter(i => i.type === 'expense').reduce((s, i) => s + parseFloat(i.amount || 0), 0);
+  const balance = income - expense;
+
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
+
+  return (
+    <div className="space-y-5">
+      {/* Übersicht-Karten */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4 text-center">
+          <p className="text-xs text-slate-500 mb-1">Einnahmen</p>
+          <p className="text-lg font-bold text-green-400">+{parseFloat(income).toFixed(2)} €</p>
+        </div>
+        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4 text-center">
+          <p className="text-xs text-slate-500 mb-1">Ausgaben</p>
+          <p className="text-lg font-bold text-red-400">-{parseFloat(expense).toFixed(2)} €</p>
+        </div>
+        <div className={`bg-[#1e1e1e] border rounded-2xl p-4 text-center ${balance >= 0 ? 'border-green-500/20' : 'border-red-500/20'}`}>
+          <p className="text-xs text-slate-500 mb-1">Bilanz</p>
+          <p className={`text-lg font-bold ${balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {balance >= 0 ? '+' : ''}{parseFloat(balance).toFixed(2)} €
+          </p>
+        </div>
+      </div>
+
+      {/* Liste */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-slate-500">{items.length} Buchung{items.length !== 1 ? 'en' : ''}</p>
+        <button onClick={() => setShowModal(true)}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
+          <Plus size={15} /> Eintrag
+        </button>
+      </div>
+
+      <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl overflow-hidden">
+        {items.length === 0 ? (
+          <div className="p-12 text-center">
+            <Euro size={40} className="text-slate-600 mx-auto mb-3" />
+            <p className="text-slate-400">Noch keine Buchungen vorhanden</p>
+            <button onClick={() => setShowModal(true)} className="mt-3 text-sm text-orange-400 hover:text-orange-500">Ersten Eintrag hinzufügen →</button>
+          </div>
+        ) : (
+          <div className="divide-y divide-[#2a2a2a]">
+            {items.map(item => (
+              <div key={item.id} className="flex items-center gap-4 px-5 py-3 hover:bg-[#252525] group transition-colors">
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.type === 'income' ? 'bg-green-400' : 'bg-red-400'}`} />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-white truncate">{item.title}</p>
+                  <p className="text-xs text-slate-500">
+                    {item.creator_name || item.username || 'Unbekannt'}
+                    {item.date ? ` · ${format(new Date(item.date), 'd. MMM yyyy', { locale: de })}` : ''}
+                  </p>
+                </div>
+                {item.category && (
+                  <span className="text-xs px-2 py-0.5 rounded-md bg-[#2a2a2a] text-slate-400 shrink-0">{item.category}</span>
+                )}
+                <span className={`text-sm font-bold shrink-0 ${item.type === 'income' ? 'text-green-400' : 'text-red-400'}`}>
+                  {item.type === 'income' ? '+' : '-'}{parseFloat(item.amount).toFixed(2)} €
+                </span>
+                {(item.user_id === user?.id || isAdmin) && (
+                  <button onClick={() => deleteMutation.mutate(item.id)}
+                    className="p-1.5 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all rounded-lg shrink-0">
+                    <Trash2 size={13} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Modal: Neuer Eintrag */}
+      <Modal open={showModal} onClose={() => { setShowModal(false); setForm(emptyForm); }} title="Neuer Eintrag" size="sm">
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
+            <input className="w-full px-3.5 py-2.5 text-sm" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5">Betrag (€) *</label>
+              <input type="number" step="0.01" min="0" className="w-full px-3.5 py-2.5 text-sm" placeholder="0,00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5">Typ</label>
+              <select className="w-full px-3.5 py-2.5 text-sm" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
+                <option value="expense">Ausgabe</option>
+                <option value="income">Einnahme</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
+            <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Miete, Lebensmittel..." value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Datum</label>
+            <input type="date" className="w-full px-3.5 py-2.5 text-sm" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => { setShowModal(false); setForm(emptyForm); }} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
+            <button onClick={() => addMutation.mutate(form)} disabled={!form.title || !form.amount || addMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50">
+              {addMutation.isPending && <Loader2 size={14} className="animate-spin" />} Hinzufügen
+            </button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
 // HAUPT-KOMPONENTE
 // ════════════════════════════════════════════════════════════════════════════
 const TABS = [
-  { id: 'tasks',     label: 'Aufgaben',  icon: CheckSquare },
-  { id: 'documents', label: 'Dokumente', icon: FileText },
-  { id: 'calendar',  label: 'Kalender',  icon: CalIcon },
-  { id: 'members',   label: 'Mitglieder',icon: Users },
+  { id: 'tasks',     label: 'Aufgaben',   icon: CheckSquare },
+  { id: 'documents', label: 'Dokumente',  icon: FileText },
+  { id: 'calendar',  label: 'Kalender',   icon: CalIcon },
+  { id: 'chat',      label: 'Chat',       icon: Hash },
+  { id: 'finance',   label: 'Finanzen',   icon: Euro },
+  { id: 'members',   label: 'Mitglieder', icon: Users },
 ];
 
 export default function GroupView() {
@@ -604,7 +892,7 @@ export default function GroupView() {
   const { user }          = useAuth();
   const qc                = useQueryClient();
   const activeTab         = tab || 'tasks';
-  const [showInvite, setShowInvite] = useState(false);
+  const [showInvite, setShowInvite]   = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteError, setInviteError] = useState('');
 
@@ -626,6 +914,11 @@ export default function GroupView() {
 
   const removeMutation = useMutation({
     mutationFn: ({ groupId: gid, userId }) => api.delete(`/groups/${gid}/members/${userId}`),
+    onSuccess:  () => qc.invalidateQueries(['group-members', groupId])
+  });
+
+  const roleMutation = useMutation({
+    mutationFn: ({ groupId: gid, userId, role }) => api.patch(`/groups/${gid}/members/${userId}/role`, { role }),
     onSuccess:  () => qc.invalidateQueries(['group-members', groupId])
   });
 
@@ -661,30 +954,44 @@ export default function GroupView() {
         </span>
       </div>
 
-      {/* Tab-Bar */}
-      <div className="flex gap-1 bg-[#1a1a1a] p-1 rounded-2xl">
-        {TABS.map(t => {
-          const Icon = t.icon;
-          return (
-            <button key={t.id} onClick={() => navigate(`/groups/${groupId}/${t.id}`)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium flex-1 justify-center transition-all ${activeTab === t.id ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20' : 'text-slate-400 hover:text-white hover:bg-[#2a2a2a]'}`}>
-              <Icon size={15} /><span className="hidden sm:inline">{t.label}</span>
-            </button>
-          );
-        })}
+      {/* Tab-Bar — horizontal scroll auf Mobil */}
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ display: 'flex', gap: '4px', background: '#1a1a1a', padding: '4px', borderRadius: '16px', minWidth: 'max-content' }}>
+          {TABS.map(t => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => navigate(`/groups/${groupId}/${t.id}`)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  padding: '8px 14px', borderRadius: '12px',
+                  fontSize: '13px', fontWeight: 500, border: 'none', cursor: 'pointer',
+                  transition: 'all 0.15s',
+                  background: activeTab === t.id ? '#f97316' : 'transparent',
+                  color: activeTab === t.id ? '#fff' : '#64748b',
+                  boxShadow: activeTab === t.id ? '0 4px 12px rgba(249,115,22,0.25)' : 'none',
+                  whiteSpace: 'nowrap',
+                }}>
+                <Icon size={14} />{t.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tab-Inhalt */}
       {activeTab === 'tasks'     && <TasksTab     groupId={groupId} groupName={group.name} />}
       {activeTab === 'documents' && <DocumentsTab groupId={groupId} />}
       {activeTab === 'calendar'  && <CalendarTab  groupId={groupId} />}
+      {activeTab === 'chat'      && <ChatTab      groupId={groupId} />}
+      {activeTab === 'finance'   && <FinanceTab   groupId={groupId} isAdmin={isAdmin} user={user} />}
       {activeTab === 'members'   && (
         <MembersTab group={group} members={members} isAdmin={isAdmin} user={user}
           removeMutation={removeMutation} regenCodeMutation={regenCodeMutation}
+          roleMutation={roleMutation}
           onInvite={() => { setShowInvite(true); setInviteError(''); }} />
       )}
 
-      {/* Invite Modal */}
+      {/* Einlade-Modal */}
       <Modal open={showInvite} onClose={() => { setShowInvite(false); setInviteError(''); }} title="Mitglied einladen" size="sm">
         <div className="space-y-4">
           {inviteError && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-sm">{inviteError}</div>}

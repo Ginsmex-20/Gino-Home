@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
+import { SocketManager, NotificationPanel, ToastContainer, NotificationBell } from './Notifications';
 import useAuth from '../stores/auth';
 
 /* ── Seiten-Titel ────────────────────────────────────────────────── */
@@ -54,6 +55,9 @@ export default function Layout() {
 
   return (
     <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', backgroundColor: '#0f0f0f' }}>
+      <SocketManager />
+      <NotificationPanel />
+      <ToastContainer />
 
       {/* ════════════════════════════════════════════════════
           DESKTOP SIDEBAR — per CSS (.sidebar-desktop) auf
@@ -140,6 +144,9 @@ export default function Layout() {
           }}>
             {pageTitle}
           </span>
+
+          {/* Glocke */}
+          <NotificationBell style={{ marginRight: '4px' }} />
 
           {/* Avatar */}
           {user?.avatar

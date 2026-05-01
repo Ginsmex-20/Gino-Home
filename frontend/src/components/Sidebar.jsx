@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import useAuth from '../stores/auth';
 import api from '../api/client';
+import { NotificationBell } from './Notifications';
 
 const personalNav = [
   { to: '/',           icon: LayoutDashboard, label: 'Dashboard', exact: true },
@@ -311,7 +312,7 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
         <GroupsSection onClose={onClose} collapsed={collapsed} />
       </nav>
 
-      {/* ── Footer: Profil + Logout ──────────────────────────────── */}
+      {/* ── Footer: Benachrichtigung + Profil + Logout ───────────── */}
       <div style={{
         padding: collapsed ? '12px 8px' : '12px',
         borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -320,6 +321,20 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
         flexDirection: 'column',
         gap: '4px',
       }}>
+        {/* Benachrichtigungs-Glocke */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: collapsed ? 'center' : 'flex-start',
+          padding: collapsed ? '0' : '4px 4px',
+        }}>
+          <NotificationBell />
+          {!collapsed && (
+            <span style={{ marginLeft: '8px', fontSize: '14px', fontWeight: 500, color: '#64748b' }}>
+              Benachrichtigungen
+            </span>
+          )}
+        </div>
         <NavLink
           to="/profile"
           onClick={() => onClose?.()}

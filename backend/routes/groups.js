@@ -2,6 +2,7 @@ const router = require('express').Router();
 const db = require('../db');
 const auth = require('../middleware/auth');
 const crypto = require('crypto');
+const { getIO } = require('../socket');
 
 function generateCode() {
   return crypto.randomBytes(4).toString('hex').toUpperCase();
@@ -136,6 +137,26 @@ router.post('/:id/chat', auth, (req, res) => {
   if (!content?.trim()) return res.status(400).json({ error: 'Nachricht erforderlich' });
   const result = db.prepare('INSERT INTO group_messages (group_id, user_id, content) VALUES (?, ?, ?)').run(req.params.id, req.user.id, content.trim());
   const message = db.prepare('SELECT gm.*, u.username, u.avatar FROM group_messages gm JOIN users u ON gm.user_id = u.id WHERE gm.id = ?').get(result.lastInsertRowid);
+
+  // Echtzeit: Nachricht an alle Gruppen-Mitglieder senden
+  const groupId = parseInt(req.params.id);
+  const groupName = db.prepare('SELECT name FROM groups WHERE id = ?').get(groupId)?.name || '';
+  const io = getIO();
+  if (io) {
+    // Nachricht event (wird im Chat-Tab angezeigt)
+    io.to(`group:${groupId}`).emit('chat:message', { groupId, message });
+    // Benachrichtigung für alle AUSSER dem Sender
+    io.to(`group:${groupId}`).emit('notification:new', {
+      type: 'chat',
+      icon: '💬',
+      title: `${groupName}`,
+      body: `${message.username}: ${message.content.slice(0, 80)}`,
+      groupId,
+      senderId: req.user.id,
+      time: message.created_at,
+    });
+  }
+
   res.json(message);
 });
 
