@@ -1,19 +1,171 @@
 import { useState, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Camera, Save, Lock, Loader2 } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { User, Camera, Save, Lock, Loader2, UserPlus, Trash2, ShieldCheck, ToggleLeft, ToggleRight, Mail } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import api from '../api/client';
 import useAuth from '../stores/auth';
 
-export default function Profile() {
-  const { user, updateUser } = useAuth();
+/* ── Benutzer-Verwaltung (nur für Owner) ─────────────────────────────── */
+function UserManagement() {
   const qc = useQueryClient();
+  const [form, setForm] = useState({ username: '', email: '' });
+  const [result, setResult] = useState(null);
+  const [error, setError]   = useState('');
+
+  const { data: users = [], isLoading } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: () => api.get('/auth/users'),
+  });
+
+  const inviteMutation = useMutation({
+    mutationFn: data => api.post('/auth/invite', data),
+    onSuccess: data => {
+      setResult(data);
+      setForm({ username: '', email: '' });
+      setError('');
+      qc.invalidateQueries({ queryKey: ['admin-users'] });
+    },
+    onError: err => setError(err.error || 'Fehler beim Einladen'),
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: id => api.patch(`/auth/users/${id}/toggle`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: id => api.delete(`/auth/users/${id}`),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-users'] }),
+  });
+
+  const handleInvite = e => {
+    e.preventDefault();
+    setResult(null); setError('');
+    inviteMutation.mutate(form);
+  };
+
+  return (
+    <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '16px', padding: '24px' }}>
+      <h2 style={{ margin: '0 0 20px', color: '#fff', fontSize: '16px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <ShieldCheck size={16} color="#f97316" /> Benutzerverwaltung
+      </h2>
+
+      {/* Einladungsformular */}
+      <div style={{ background: '#111', borderRadius: '12px', padding: '16px', marginBottom: '20px', border: '1px solid #222' }}>
+        <p style={{ margin: '0 0 12px', color: '#94a3b8', fontSize: '13px', fontWeight: 500 }}>
+          Neuen Benutzer einladen
+        </p>
+        {error  && <div style={{ padding: '8px 12px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', fontSize: '13px', marginBottom: '12px' }}>{error}</div>}
+        {result && (
+          <div style={{ padding: '10px 12px', borderRadius: '8px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80', fontSize: '13px', marginBottom: '12px' }}>
+            ✅ {result.message}
+            {result.temp_code && (
+              <div style={{ marginTop: '6px', fontFamily: 'monospace', fontSize: '16px', letterSpacing: '4px', color: '#f97316' }}>
+                Code: {result.temp_code}
+              </div>
+            )}
+          </div>
+        )}
+        <form onSubmit={handleInvite} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <input
+            placeholder="Benutzername"
+            value={form.username}
+            onChange={e => setForm(f => ({ ...f, username: e.target.value }))}
+            style={{ padding: '9px 12px', borderRadius: '8px', fontSize: '14px' }}
+            required
+          />
+          <input
+            type="email" placeholder="E-Mail-Adresse"
+            value={form.email}
+            onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+            style={{ padding: '9px 12px', borderRadius: '8px', fontSize: '14px' }}
+            required
+          />
+          <button type="submit" disabled={inviteMutation.isPending} style={{
+            padding: '9px 16px', background: '#f97316', color: '#fff',
+            border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '13px',
+            cursor: inviteMutation.isPending ? 'not-allowed' : 'pointer',
+            display: 'flex', alignItems: 'center', gap: '6px', opacity: inviteMutation.isPending ? 0.7 : 1,
+          }}>
+            {inviteMutation.isPending ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <UserPlus size={14} />}
+            Einladung senden
+          </button>
+        </form>
+      </div>
+
+      {/* Benutzerliste */}
+      <p style={{ margin: '0 0 10px', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        Alle Benutzer ({users.length})
+      </p>
+      {isLoading ? (
+        <div style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>Laden...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {users.map(u => (
+            <div key={u.id} style={{
+              display: 'flex', alignItems: 'center', gap: '12px',
+              padding: '10px 12px', borderRadius: '10px',
+              background: '#0f0f0f', border: '1px solid #1e1e1e',
+              opacity: u.is_active === 0 ? 0.5 : 1,
+            }}>
+              <div style={{
+                width: '34px', height: '34px', borderRadius: '50%', flexShrink: 0,
+                background: 'linear-gradient(135deg,#f97316,#ea580c)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '13px', fontWeight: 700, color: '#fff',
+              }}>
+                {(u.username || '?')[0].toUpperCase()}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ color: '#fff', fontSize: '13px', fontWeight: 500 }}>{u.username}</div>
+                <div style={{ color: '#64748b', fontSize: '11px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.email}</div>
+                {u.force_password_change ? (
+                  <div style={{ color: '#f59e0b', fontSize: '10px', marginTop: '2px' }}>⏳ Noch kein eigenes Passwort</div>
+                ) : null}
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+                <button
+                  onClick={() => toggleMutation.mutate(u.id)}
+                  disabled={toggleMutation.isPending}
+                  title={u.is_active ? 'Deaktivieren' : 'Aktivieren'}
+                  style={{
+                    padding: '6px', background: 'transparent',
+                    border: '1px solid #2a2a2a', borderRadius: '8px',
+                    cursor: 'pointer', color: u.is_active ? '#4ade80' : '#64748b',
+                  }}
+                >
+                  {u.is_active ? <ToggleRight size={15} /> : <ToggleLeft size={15} />}
+                </button>
+                <button
+                  onClick={() => { if (confirm(`${u.username} löschen?`)) deleteMutation.mutate(u.id); }}
+                  disabled={deleteMutation.isPending}
+                  title="Löschen"
+                  style={{
+                    padding: '6px', background: 'transparent',
+                    border: '1px solid #2a2a2a', borderRadius: '8px',
+                    cursor: 'pointer', color: '#ef4444',
+                  }}
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Profile Page ────────────────────────────────────────────────────── */
+export default function Profile() {
+  const { user, updateUser, isOwner } = useAuth();
   const fileRef = useRef();
-  const [profile, setProfile] = useState({ username: user?.username || '', bio: user?.bio || '', phone: user?.phone || '' });
-  const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirm: '' });
-  const [pwError, setPwError] = useState('');
-  const [pwSuccess, setPwSuccess] = useState(false);
+  const [profile, setProfile]       = useState({ username: user?.username || '', bio: user?.bio || '', phone: user?.phone || '' });
+  const [passwords, setPasswords]   = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [pwError, setPwError]       = useState('');
+  const [pwSuccess, setPwSuccess]   = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
 
   const saveMutation = useMutation({
@@ -119,6 +271,9 @@ export default function Profile() {
           </button>
         </form>
       </div>
+
+      {/* Benutzerverwaltung — nur für Owner sichtbar */}
+      {isOwner() && <UserManagement />}
     </div>
   );
 }

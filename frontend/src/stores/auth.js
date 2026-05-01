@@ -1,29 +1,31 @@
 import { create } from 'zustand';
 import api from '../api/client';
 
-const useAuth = create((set) => ({
+const OWNER_EMAIL = 'lpirmus2002@gmail.com';
+
+const useAuth = create((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
   isLoading: false,
+  mustChangePassword: false,
 
   login: async (email, password) => {
     const data = await api.post('/auth/login', { email, password });
     localStorage.setItem('token', data.token);
-    set({ user: data.user, token: data.token });
-    return data;
-  },
-
-  register: async (username, email, password) => {
-    const data = await api.post('/auth/register', { username, email, password });
-    localStorage.setItem('token', data.token);
-    set({ user: data.user, token: data.token });
+    set({ user: data.user, token: data.token, mustChangePassword: !!data.must_change_password });
     return data;
   },
 
   loginWithApple: async (identityToken, user) => {
     const data = await api.post('/auth/apple', { identityToken, user });
     localStorage.setItem('token', data.token);
-    set({ user: data.user, token: data.token });
+    set({ user: data.user, token: data.token, mustChangePassword: false });
+    return data;
+  },
+
+  setInitialPassword: async (password) => {
+    const data = await api.post('/auth/set-password', { password });
+    set({ mustChangePassword: false, user: data.user });
     return data;
   },
 
@@ -33,7 +35,7 @@ const useAuth = create((set) => ({
     try {
       set({ isLoading: true });
       const user = await api.get('/auth/me');
-      set({ user, isLoading: false });
+      set({ user, isLoading: false, mustChangePassword: !!user.force_password_change });
     } catch {
       localStorage.removeItem('token');
       set({ user: null, token: null, isLoading: false });
@@ -42,9 +44,11 @@ const useAuth = create((set) => ({
 
   updateUser: (user) => set({ user }),
 
+  isOwner: () => get().user?.email === OWNER_EMAIL,
+
   logout: () => {
     localStorage.removeItem('token');
-    set({ user: null, token: null });
+    set({ user: null, token: null, mustChangePassword: false });
   }
 }));
 

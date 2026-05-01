@@ -6,10 +6,30 @@ const auth = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { sendWelcome } = require('../services/email');
-
+const { sendWelcome, sendInvite } = require('../services/email');
 const { uploadsPath } = require('../config');
 
+// ── Konstanten ───────────────────────────────────────────────────────────────
+const OWNER_EMAIL = 'lpirmus2002@gmail.com';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function generateTempCode(length = 8) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return code;
+}
+
+function requireOwner(req, res, next) {
+  if (req.user?.email !== OWNER_EMAIL) {
+    return res.status(403).json({ error: 'Nur der Eigentümer kann diese Aktion ausführen' });
+  }
+  next();
+}
+
+// ── Avatar Upload ─────────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const dir = path.join(uploadsPath, 'avatars');
@@ -22,28 +42,14 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
 
+// ── REGISTER — deaktiviert (nur per Einladung) ────────────────────────────────
 router.post('/register', async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-    if (!username || !email || !password) return res.status(400).json({ error: 'Alle Felder erforderlich' });
-    if (password.length < 6) return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
-
-    const exists = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
-    if (exists) return res.status(409).json({ error: 'Email oder Benutzername bereits vergeben' });
-
-    const hash = await bcrypt.hash(password, 10);
-    const result = db.prepare('INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)').run(username, email, hash);
-    const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at FROM users WHERE id = ?').get(result.lastInsertRowid);
-
-    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
-    // Willkommens-Mail senden (nur wenn SMTP konfiguriert)
-    sendWelcome(user.email, user.username).catch(() => {});
-    res.json({ token, user });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  return res.status(403).json({
+    error: 'Registrierung ist deaktiviert. Bitte wende dich an den Administrator.'
+  });
 });
 
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -51,20 +57,29 @@ router.post('/login', async (req, res) => {
     if (!user || !await bcrypt.compare(password, user.password_hash)) {
       return res.status(401).json({ error: 'Ungültige Anmeldedaten' });
     }
+    if (user.is_active === 0) {
+      return res.status(403).json({ error: 'Konto wurde deaktiviert' });
+    }
     const { password_hash, ...safeUser } = user;
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
-    res.json({ token, user: safeUser });
+    res.json({
+      token,
+      user: safeUser,
+      must_change_password: !!user.force_password_change
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
+// ── ME ────────────────────────────────────────────────────────────────────────
 router.get('/me', auth, (req, res) => {
-  const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at, force_password_change FROM users WHERE id = ?').get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Nicht gefunden' });
   res.json(user);
 });
 
+// ── PROFIL BEARBEITEN ─────────────────────────────────────────────────────────
 router.put('/profile', auth, (req, res) => {
   const { username, bio, phone } = req.body;
   db.prepare('UPDATE users SET username = ?, bio = ?, phone = ? WHERE id = ?').run(username, bio, phone, req.user.id);
@@ -72,6 +87,7 @@ router.put('/profile', auth, (req, res) => {
   res.json(user);
 });
 
+// ── AVATAR ────────────────────────────────────────────────────────────────────
 router.post('/avatar', auth, upload.single('avatar'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Keine Datei' });
   const avatarUrl = `/uploads/avatars/${req.file.filename}`;
@@ -79,6 +95,7 @@ router.post('/avatar', auth, upload.single('avatar'), (req, res) => {
   res.json({ avatar: avatarUrl });
 });
 
+// ── PASSWORT ÄNDERN (normal) ──────────────────────────────────────────────────
 router.put('/password', auth, async (req, res) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -94,17 +111,95 @@ router.put('/password', auth, async (req, res) => {
   }
 });
 
-// ─── Apple Sign In ───────────────────────────────────────────────────────────
+// ── PASSWORT ERZWINGEN (erstes Login) ─────────────────────────────────────────
+router.post('/set-password', auth, async (req, res) => {
+  try {
+    const { password } = req.body;
+    if (!password || password.length < 6) {
+      return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
+    }
+    const hash = await bcrypt.hash(password, 10);
+    db.prepare('UPDATE users SET password_hash = ?, force_password_change = 0 WHERE id = ?').run(hash, req.user.id);
+    const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at, force_password_change FROM users WHERE id = ?').get(req.user.id);
+    res.json({ success: true, user });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── EINLADEN (nur Eigentümer) ─────────────────────────────────────────────────
+router.post('/invite', auth, requireOwner, async (req, res) => {
+  try {
+    const { email, username } = req.body;
+    if (!email || !username) {
+      return res.status(400).json({ error: 'E-Mail und Benutzername erforderlich' });
+    }
+
+    const exists = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
+    if (exists) {
+      return res.status(409).json({ error: 'E-Mail oder Benutzername bereits vergeben' });
+    }
+
+    const tempCode = generateTempCode(8);
+    const hash = await bcrypt.hash(tempCode, 10);
+
+    db.prepare(
+      'INSERT INTO users (username, email, password_hash, force_password_change) VALUES (?, ?, ?, 1)'
+    ).run(username, email, hash);
+
+    // E-Mail mit temp Code senden
+    const sent = await sendInvite(email, username, tempCode);
+
+    res.json({
+      success: true,
+      message: sent
+        ? `Einladung an ${email} gesendet`
+        : `Konto erstellt. Temp-Code (SMTP nicht konfiguriert): ${tempCode}`,
+      temp_code: sent ? undefined : tempCode
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── BENUTZER LISTE (nur Eigentümer) ──────────────────────────────────────────
+router.get('/users', auth, requireOwner, (req, res) => {
+  const users = db.prepare(
+    'SELECT id, username, email, avatar, created_at, force_password_change, is_active FROM users ORDER BY created_at ASC'
+  ).all();
+  res.json(users);
+});
+
+// ── BENUTZER DEAKTIVIEREN/AKTIVIEREN (nur Eigentümer) ────────────────────────
+router.patch('/users/:id/toggle', auth, requireOwner, (req, res) => {
+  const { id } = req.params;
+  const user = db.prepare('SELECT id, email, is_active FROM users WHERE id = ?').get(id);
+  if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  if (user.email === OWNER_EMAIL) return res.status(403).json({ error: 'Eigentümer kann nicht deaktiviert werden' });
+  const newStatus = user.is_active ? 0 : 1;
+  db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(newStatus, id);
+  res.json({ success: true, is_active: newStatus });
+});
+
+// ── BENUTZER LÖSCHEN (nur Eigentümer) ────────────────────────────────────────
+router.delete('/users/:id', auth, requireOwner, (req, res) => {
+  const { id } = req.params;
+  const user = db.prepare('SELECT email FROM users WHERE id = ?').get(id);
+  if (!user) return res.status(404).json({ error: 'Benutzer nicht gefunden' });
+  if (user.email === OWNER_EMAIL) return res.status(403).json({ error: 'Eigentümer kann nicht gelöscht werden' });
+  db.prepare('DELETE FROM users WHERE id = ?').run(id);
+  res.json({ success: true });
+});
+
+// ── Apple Sign In ─────────────────────────────────────────────────────────────
 router.post('/apple', async (req, res) => {
   try {
     if (!process.env.APPLE_CLIENT_ID) {
       return res.status(501).json({ error: 'Apple Sign In nicht konfiguriert' });
     }
-
     const { identityToken, user: appleUser } = req.body;
     if (!identityToken) return res.status(400).json({ error: 'Apple-Token fehlt' });
 
-    // Token mit Apple-Servern verifizieren
     const appleSignin = require('apple-signin-auth');
     const payload = await appleSignin.verifyIdToken(identityToken, {
       audience: process.env.APPLE_CLIENT_ID,
@@ -118,18 +213,13 @@ router.post('/apple', async (req, res) => {
       : null;
     const username = fullName || `gino_${appleUserId.slice(-6)}`;
 
-    // Benutzer suchen oder anlegen
     let user = db.prepare('SELECT * FROM users WHERE apple_id = ?').get(appleUserId);
-
     if (!user) {
-      // Existiert schon ein Account mit gleicher E-Mail?
       user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
       if (user) {
-        // Apple ID mit bestehendem Account verknüpfen
         db.prepare('UPDATE users SET apple_id = ?, auth_provider = ? WHERE id = ?')
           .run(appleUserId, 'apple', user.id);
       } else {
-        // Neuen Account erstellen
         const result = db.prepare(
           'INSERT INTO users (username, email, apple_id, auth_provider, password_hash) VALUES (?, ?, ?, ?, ?)'
         ).run(username, email, appleUserId, 'apple', '');

@@ -112,9 +112,8 @@ export default function Login() {
               {loading ? <><Loader2 size={16} className="animate-spin" /> Anmelden...</> : 'Anmelden'}
             </button>
           </form>
-          <p className="text-center text-sm text-slate-500 mt-4">
-            Noch kein Konto?{' '}
-            <Link to="/register" className="text-orange-400 hover:text-orange-500 transition-colors">Registrieren</Link>
+          <p className="text-center text-sm text-slate-600 mt-4">
+            Zugang nur auf Einladung
           </p>
         </div>
       </div>

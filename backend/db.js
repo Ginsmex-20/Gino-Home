@@ -187,6 +187,9 @@ try { db.exec(`ALTER TABLE users ADD COLUMN auth_provider TEXT DEFAULT 'email'`)
 // Debt management fields
 try { db.exec(`ALTER TABLE loans ADD COLUMN reference_number TEXT`); } catch {}
 try { db.exec(`ALTER TABLE loans ADD COLUMN creditor TEXT`); } catch {}
+// Access control
+try { db.exec(`ALTER TABLE users ADD COLUMN force_password_change INTEGER DEFAULT 0`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER DEFAULT 1`); } catch {}
 
 // Generate invite codes for groups that don't have one
 const groupsWithoutCode = db.prepare('SELECT id FROM groups WHERE invite_code IS NULL').all();
