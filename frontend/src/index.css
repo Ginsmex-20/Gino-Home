@@ -130,10 +130,9 @@ input[type="checkbox"] {
 /* DESKTOP (≥ 768px): Sidebar sichtbar, Mobile-Elemente versteckt */
 @media (min-width: 768px) {
   .sidebar-desktop        { display: flex !important; }
-  .mobile-overlay-sidebar { display: none  !important; }
-  .mobile-header          { display: none  !important; }
-  .bottom-nav-bar         { display: none  !important; }
-  .page-content           { padding: 24px 32px !important; padding-bottom: 32px !important; }
+  .mobile-overlay-sidebar { display: none !important; }
+  .mobile-header          { display: none !important; }
+  .bottom-nav-bar         { display: none !important; }
 }
 
 /* MOBIL (< 768px): Sidebar versteckt, Hamburger + BottomNav aktiv */
@@ -142,5 +141,5 @@ input[type="checkbox"] {
   .mobile-overlay-sidebar { display: block !important; }
   .mobile-header          { display: flex  !important; }
   .bottom-nav-bar         { display: flex  !important; }
-  .page-content           { padding: 12px 12px !important; padding-bottom: 100px !important; }
+  .page-content           { padding: 12px !important; padding-bottom: 100px !important; }
 }
