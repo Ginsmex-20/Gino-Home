@@ -16,6 +16,13 @@ const useAuth = create((set, get) => ({
     return data;
   },
 
+  loginWithGoogle: async (accessToken) => {
+    const data = await api.post('/auth/google', { accessToken });
+    localStorage.setItem('token', data.token);
+    set({ user: data.user, token: data.token, mustChangePassword: !!data.must_change_password });
+    return data;
+  },
+
   loginWithApple: async (identityToken, user) => {
     const data = await api.post('/auth/apple', { identityToken, user });
     localStorage.setItem('token', data.token);

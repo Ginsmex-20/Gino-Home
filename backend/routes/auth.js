@@ -191,6 +191,48 @@ router.delete('/users/:id', auth, requireOwner, (req, res) => {
   res.json({ success: true });
 });
 
+// ── Google Sign In ────────────────────────────────────────────────────────────
+router.post('/google', async (req, res) => {
+  try {
+    const { accessToken } = req.body;
+    if (!accessToken) return res.status(400).json({ error: 'Google-Token fehlt' });
+
+    // Userdaten von Google holen
+    const response = await fetch(`https://www.googleapis.com/oauth2/v3/userinfo?access_token=${accessToken}`);
+    if (!response.ok) return res.status(401).json({ error: 'Google-Token ungültig' });
+    const googleUser = await response.json();
+
+    const { email, name, sub: googleId, picture } = googleUser;
+    if (!email) return res.status(400).json({ error: 'Keine E-Mail von Google erhalten' });
+
+    // Nur eingeladene / existierende User dürfen sich einloggen
+    let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+    if (!user) {
+      // Kein Account vorhanden → kein Zugang (kein automatisches Anlegen)
+      return res.status(403).json({
+        error: 'Kein Konto mit dieser Google-E-Mail. Bitte wende dich an den Administrator.'
+      });
+    }
+
+    // Google ID verknüpfen falls noch nicht
+    if (!user.apple_id || user.apple_id !== googleId) {
+      db.prepare('UPDATE users SET auth_provider = ? WHERE id = ?').run('google', user.id);
+    }
+
+    if (user.is_active === 0) {
+      return res.status(403).json({ error: 'Konto wurde deaktiviert' });
+    }
+
+    const { password_hash, ...safeUser } = user;
+    const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET, { expiresIn: '30d' });
+    res.json({ token, user: safeUser, must_change_password: !!user.force_password_change });
+  } catch (err) {
+    console.error('[Google Auth]', err.message);
+    res.status(500).json({ error: 'Google-Anmeldung fehlgeschlagen: ' + err.message });
+  }
+});
+
 // ── Apple Sign In ─────────────────────────────────────────────────────────────
 router.post('/apple', async (req, res) => {
   try {
