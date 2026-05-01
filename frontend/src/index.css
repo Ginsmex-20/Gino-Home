@@ -135,11 +135,11 @@ input[type="checkbox"] {
   .bottom-nav-bar         { display: none !important; }
 }
 
-/* MOBIL (< 768px): Sidebar versteckt, Hamburger + BottomNav aktiv */
+/* MOBIL (< 768px): Sidebar versteckt, Hamburger aktiv, kein BottomNav */
 @media (max-width: 767px) {
   .sidebar-desktop        { display: none  !important; }
   .mobile-overlay-sidebar { display: block !important; }
   .mobile-header          { display: flex  !important; }
-  .bottom-nav-bar         { display: flex  !important; }
-  .page-content           { padding: 12px !important; padding-bottom: 100px !important; }
+  .bottom-nav-bar         { display: none  !important; }
+  .page-content           { padding: 12px !important; padding-bottom: 24px !important; }
 }
