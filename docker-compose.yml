@@ -13,47 +13,41 @@ services:
       - DB_PATH=/app/data/ginohome.db
       - UPLOADS_PATH=/app/data/uploads
       - JWT_SECRET=${JWT_SECRET:-bitte-in-.env-aendern-!}
-      # E-Mail (optional — leer lassen um zu deaktivieren)
       - SMTP_HOST=${SMTP_HOST:-smtp.gmail.com}
       - SMTP_PORT=${SMTP_PORT:-587}
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-}
     volumes:
-      # Datenbank & Uploads bleiben dauerhaft auf TrueNAS erhalten
       - ./data:/app/data
     networks:
       - ginohome
 
-  # ── Frontend (React + nginx) ──────────────────────────
+  # ── Frontend (React + nginx + SSL) ───────────────────
   frontend:
     build: ./frontend
     container_name: ginohome-frontend
     restart: unless-stopped
     ports:
-      # TrueNAS-IP:8080 → App im Browser öffnen
-      - "8080:80"
+      - "8080:80"    # HTTP (ACME-Challenge + Redirect)
+      - "8443:443"   # HTTPS
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt:ro
+      - ./certbot/www:/var/www/certbot
     depends_on:
       - backend
     networks:
       - ginohome
 
-  # ── Cloudflare Tunnel (optional — für externen Zugriff) ──
-  # 1. Konto unter https://dash.cloudflare.com erstellen (kostenlos)
-  # 2. Zero Trust → Networks → Tunnels → Tunnel erstellen
-  # 3. Token kopieren und in .env eintragen: CLOUDFLARE_TUNNEL_TOKEN=...
-  # 4. sudo docker compose up -d tunnel
-  tunnel:
-    image: cloudflare/cloudflared:latest
-    container_name: ginohome-tunnel
+  # ── Certbot (SSL-Zertifikat automatisch erneuern) ────
+  certbot:
+    image: certbot/certbot
+    container_name: ginohome-certbot
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:-}
-    depends_on:
-      - frontend
-    networks:
-      - ginohome
+    volumes:
+      - ./certbot/conf:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew --quiet; sleep 12h & wait $${!}; done;'"
 
 networks:
   ginohome:
