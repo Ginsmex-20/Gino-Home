@@ -7,10 +7,10 @@ import Modal from '../components/Modal';
 import api from '../api/client';
 
 const STATUS_OPTS = [
-  { value: 'todo',        label: 'To-do',     color: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
+  { value: 'todo',        label: 'To-do',    color: '#94a3b8', bg: 'rgba(148,163,184,0.12)' },
   { value: 'in_progress', label: 'In Arbeit', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)'  },
   { value: 'done',        label: 'Erledigt',  color: '#22c55e', bg: 'rgba(34,197,94,0.15)'   },
-  { value: 'blocked',     label: 'Blockiert', color: '#ef4444', bg: 'rgba(239,68,68,0.15)'   },
+  { value: 'archiv',      label: 'Archiv',    color: '#a78bfa', bg: 'rgba(167,139,250,0.15)' },
 ];
 const PRIO_OPTS = [
   { value: 'low',    label: 'Niedrig', color: '#3b82f6' },
@@ -29,6 +29,7 @@ export default function Tasks() {
   const [editing, setEditing]   = useState(null);
   const [form, setForm]         = useState(emptyForm);
   const [filterType, setFilterType] = useState('');
+  const [archiveSearch, setArchiveSearch] = useState('');
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['tasks', filterType],
@@ -122,85 +123,102 @@ export default function Tasks() {
               flexShrink: 0,
             }}>
               {/* Column header */}
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-                <span style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color, background: bg }}>
-                  {label}
-                </span>
-                <span style={{ fontSize: '11px', color: '#4b5563', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '99px' }}>
-                  {grouped[value]?.length || 0}
-                </span>
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color, background: bg }}>
+                    {label}
+                  </span>
+                  <span style={{ fontSize: '11px', color: '#4b5563', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '99px' }}>
+                    {grouped[value]?.length || 0}
+                  </span>
+                </div>
+                {value === 'archiv' && (
+                  <div style={{ marginTop: '8px' }}>
+                    <input
+                      placeholder="Archiv durchsuchen..."
+                      value={archiveSearch}
+                      onChange={e => setArchiveSearch(e.target.value)}
+                      style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', background: '#111', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', outline: 'none', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Task cards */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {grouped[value]?.map(task => {
-                  const prio = PRIO_OPTS.find(o => o.value === task.priority) || PRIO_OPTS[1];
-                  return (
-                    <div key={task.id} style={{
-                      background: '#111', border: '1px solid rgba(255,255,255,0.05)',
-                      borderRadius: '12px', padding: '12px',
-                    }}>
-                      {/* Title + actions */}
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px', marginBottom: '8px' }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          <p style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {task.title}
-                          </p>
-                          {task.description && (
-                            <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {task.description}
+                {(() => {
+                  const displayedTasks = value === 'archiv'
+                    ? (grouped[value] || []).filter(t => !archiveSearch || t.title.toLowerCase().includes(archiveSearch.toLowerCase()) || (t.description || '').toLowerCase().includes(archiveSearch.toLowerCase()))
+                    : (grouped[value] || []);
+                  return displayedTasks.map(task => {
+                    const prio = PRIO_OPTS.find(o => o.value === task.priority) || PRIO_OPTS[1];
+                    return (
+                      <div key={task.id} style={{
+                        background: '#111', border: '1px solid rgba(255,255,255,0.05)',
+                        borderRadius: '12px', padding: '12px',
+                      }}>
+                        {/* Title + actions */}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '6px', marginBottom: '8px' }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <p style={{ fontSize: '13px', fontWeight: 600, color: '#e2e8f0', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {task.title}
                             </p>
+                            {task.description && (
+                              <p style={{ fontSize: '11px', color: '#64748b', margin: '3px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {task.description}
+                              </p>
+                            )}
+                          </div>
+                          {/* Always-visible action buttons */}
+                          <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
+                            <button
+                              onClick={() => openEdit(task)}
+                              style={{ padding: '5px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', lineHeight: 0 }}
+                            >
+                              <Edit size={13} />
+                            </button>
+                            <button
+                              onClick={() => deleteMutation.mutate(task.id)}
+                              style={{ padding: '5px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', lineHeight: 0 }}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Badges */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: value !== 'done' && value !== 'archiv' ? '8px' : 0 }}>
+                          <span style={{ fontSize: '10px', fontWeight: 600, color: prio.color, background: prio.color + '22', padding: '2px 7px', borderRadius: '6px' }}>
+                            {prio.label}
+                          </span>
+                          {task.type === 'household' && (
+                            <span style={{ fontSize: '10px', color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '2px 7px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <Home size={9} /> Haushalt
+                            </span>
+                          )}
+                          {task.due_date && (
+                            <span style={{ fontSize: '10px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                              <Clock size={9} /> {format(new Date(task.due_date), 'd. MMM', { locale: de })}
+                            </span>
                           )}
                         </div>
-                        {/* Always-visible action buttons */}
-                        <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
-                          <button
-                            onClick={() => openEdit(task)}
-                            style={{ padding: '5px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', lineHeight: 0 }}
-                          >
-                            <Edit size={13} />
-                          </button>
-                          <button
-                            onClick={() => deleteMutation.mutate(task.id)}
-                            style={{ padding: '5px', color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', lineHeight: 0 }}
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
 
-                      {/* Badges */}
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginBottom: value !== 'done' ? '8px' : 0 }}>
-                        <span style={{ fontSize: '10px', fontWeight: 600, color: prio.color, background: prio.color + '22', padding: '2px 7px', borderRadius: '6px' }}>
-                          {prio.label}
-                        </span>
-                        {task.type === 'household' && (
-                          <span style={{ fontSize: '10px', color: '#22c55e', background: 'rgba(34,197,94,0.1)', padding: '2px 7px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Home size={9} /> Haushalt
-                          </span>
-                        )}
-                        {task.due_date && (
-                          <span style={{ fontSize: '10px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '3px' }}>
-                            <Clock size={9} /> {format(new Date(task.due_date), 'd. MMM', { locale: de })}
-                          </span>
+                        {/* Status-Wechsel */}
+                        {value !== 'done' && value !== 'archiv' && (
+                          <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
+                            <select
+                              value={task.status}
+                              onChange={e => statusMutation.mutate({ id: task.id, status: e.target.value })}
+                              style={{ width: '100%', padding: '5px 8px', borderRadius: '8px', fontSize: '12px' }}
+                            >
+                              {STATUS_OPTS.filter(s => s.value !== 'archiv').map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                            </select>
+                          </div>
                         )}
                       </div>
-
-                      {/* Status-Wechsel */}
-                      {value !== 'done' && (
-                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-                          <select
-                            value={task.status}
-                            onChange={e => statusMutation.mutate({ id: task.id, status: e.target.value })}
-                            style={{ width: '100%', padding: '5px 8px', borderRadius: '8px', fontSize: '12px' }}
-                          >
-                            {STATUS_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                          </select>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
                 {(grouped[value]?.length || 0) === 0 && (
                   <p style={{ fontSize: '12px', color: '#374151', textAlign: 'center', padding: '16px 0' }}>Leer</p>
                 )}
@@ -238,7 +256,7 @@ export default function Tasks() {
             <div>
               <label style={{ display: 'block', fontSize: '13px', color: '#94a3b8', marginBottom: '6px' }}>Status</label>
               <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))} style={{ width: '100%', padding: '10px 14px' }}>
-                {STATUS_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                {STATUS_OPTS.filter(s => s.value !== 'archiv').map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
             </div>
             <div>

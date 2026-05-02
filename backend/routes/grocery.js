@@ -41,9 +41,9 @@ router.post('/', auth, (req, res) => {
 
   // Automatisch als Finanz-Ausgabe (Lebensmittel) buchen
   db.prepare(
-    `INSERT INTO finance_items (title, amount, type, category, date, description, created_by)
-     VALUES (?, ?, 'expense', 'Lebensmittel', ?, ?, ?)`
-  ).run(`Einkauf: ${merchant}`, parseFloat(total_amount), date, notes || null, req.user.id);
+    `INSERT INTO finance_items (title, amount, type, category, date, description, created_by, grocery_receipt_id)
+     VALUES (?, ?, 'expense', 'Lebensmittel', ?, ?, ?, ?)`
+  ).run(`Einkauf: ${merchant}`, parseFloat(total_amount || sumItems), date, notes || null, req.user.id, receiptId);
 
   res.json(db.prepare('SELECT * FROM grocery_receipts WHERE id = ?').get(receiptId));
 });
@@ -54,11 +54,16 @@ router.put('/:id', auth, (req, res) => {
   db.prepare(
     'UPDATE grocery_receipts SET merchant=?, date=?, total_amount=?, notes=? WHERE id=? AND created_by=?'
   ).run(merchant, date, parseFloat(total_amount), notes || null, req.params.id, req.user.id);
+  // Verknüpften Finanzeintrag aktualisieren
+  db.prepare(`UPDATE finance_items SET title = ?, amount = ?, date = ?, description = ? WHERE grocery_receipt_id = ?`)
+    .run(`Einkauf: ${merchant}`, parseFloat(total_amount), date, notes || null, req.params.id);
   res.json(db.prepare('SELECT * FROM grocery_receipts WHERE id = ?').get(req.params.id));
 });
 
 /* ── Einkauf löschen ── */
 router.delete('/:id', auth, (req, res) => {
+  // Verknüpften Finanzeintrag löschen
+  db.prepare('DELETE FROM finance_items WHERE grocery_receipt_id = ?').run(req.params.id);
   db.prepare('DELETE FROM grocery_receipts WHERE id = ? AND created_by = ?').run(req.params.id, req.user.id);
   res.json({ success: true });
 });

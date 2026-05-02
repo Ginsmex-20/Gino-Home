@@ -5,7 +5,7 @@ import {
   CheckSquare, FileText, Calendar as CalIcon, Users, ArrowLeft,
   Plus, Trash2, Loader2, UserMinus, Crown, Hash, RefreshCw, Copy,
   Edit, Upload, Search, Download, Image, File, Clock, Home,
-  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send
+  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send, X
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -22,7 +22,7 @@ const STATUS_OPTS = [
   { value: 'todo',        label: 'To-do',         color: 'bg-slate-700 text-slate-200' },
   { value: 'in_progress', label: 'In Bearbeitung', color: 'bg-amber-500/20 text-amber-400' },
   { value: 'done',        label: 'Erledigt',       color: 'bg-green-500/20 text-green-400' },
-  { value: 'blocked',     label: 'Blockiert',      color: 'bg-red-500/20 text-red-400' },
+  { value: 'archiv',      label: 'Archiv',         color: 'bg-purple-500/20 text-purple-400' },
 ];
 const PRIO_OPTS = [
   { value: 'low',    label: 'Niedrig', color: 'bg-blue-500/20 text-blue-400' },
@@ -66,6 +66,7 @@ function TasksTab({ groupId, groupName }) {
   const [editing, setEditing]     = useState(null);
   const emptyForm = { title: '', description: '', status: 'todo', priority: 'medium', due_date: '', budget: '', notes: '' };
   const [form, setForm] = useState(emptyForm);
+  const [archiveSearch, setArchiveSearch] = useState('');
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['group-tasks', groupId],
@@ -112,39 +113,56 @@ function TasksTab({ groupId, groupName }) {
       <div className="kanban-scroll md:grid md:grid-cols-2 xl:grid-cols-4">
         {STATUS_OPTS.map(({ value, label, color }) => (
           <div key={value} className="kanban-col md:min-w-0 bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${color}`}>{label}</span>
-              <span className="text-xs text-slate-500 bg-[#161616] px-2 py-0.5 rounded-full">{grouped[value]?.length || 0}</span>
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-medium ${color}`}>{label}</span>
+                <span className="text-xs text-slate-500 bg-[#161616] px-2 py-0.5 rounded-full">{grouped[value]?.length || 0}</span>
+              </div>
+              {value === 'archiv' && (
+                <div style={{ marginTop: '8px' }}>
+                  <input
+                    placeholder="Archiv durchsuchen..."
+                    value={archiveSearch}
+                    onChange={e => setArchiveSearch(e.target.value)}
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: '8px', fontSize: '12px', background: '#111', border: '1px solid rgba(255,255,255,0.08)', color: '#fff', outline: 'none', boxSizing: 'border-box' }}
+                  />
+                </div>
+              )}
             </div>
             <div className="space-y-2">
               {grouped[value]?.length === 0 && (
                 <p className="text-xs text-slate-700 text-center py-2">Keine Aufgaben</p>
               )}
-              {grouped[value]?.map(task => (
-                <div key={task.id} className="bg-[#161616] hover:bg-[#1a1a1a] rounded-xl p-3 group transition-colors">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm font-medium text-white truncate flex-1">{task.title}</p>
-                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <button onClick={() => openEdit(task)} className="p-1 text-slate-500 hover:text-white rounded transition-colors"><Edit size={12} /></button>
-                      <button onClick={() => deleteMutation.mutate(task.id)} className="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"><Trash2 size={12} /></button>
+              {(() => {
+                const displayedTasks = value === 'archiv'
+                  ? (grouped[value] || []).filter(t => !archiveSearch || t.title.toLowerCase().includes(archiveSearch.toLowerCase()) || (t.description || '').toLowerCase().includes(archiveSearch.toLowerCase()))
+                  : (grouped[value] || []);
+                return displayedTasks.map(task => (
+                  <div key={task.id} className="bg-[#161616] hover:bg-[#1a1a1a] rounded-xl p-3 group transition-colors">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-white truncate flex-1">{task.title}</p>
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                        <button onClick={() => openEdit(task)} className="p-1 text-slate-500 hover:text-white rounded transition-colors"><Edit size={12} /></button>
+                        <button onClick={() => deleteMutation.mutate(task.id)} className="p-1 text-slate-500 hover:text-red-400 rounded transition-colors"><Trash2 size={12} /></button>
+                      </div>
                     </div>
-                  </div>
-                  {task.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{task.description}</p>}
-                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                    <PriBadge priority={task.priority} />
-                    {task.due_date && <span className="text-xs text-slate-500 flex items-center gap-1"><Clock size={10} />{format(new Date(task.due_date), 'd. MMM', { locale: de })}</span>}
-                    {task.creator_name && task.creator_name !== task.assignee_name && <span className="text-xs text-slate-600">von {task.creator_name}</span>}
-                  </div>
-                  {value !== 'done' && (
-                    <div className="mt-2 pt-2 border-t border-[#2a2a2a]">
-                      <select className="w-full text-xs py-1 px-2 rounded-lg bg-[#222] border border-[#333] text-slate-300"
-                        value={task.status} onChange={e => statusMutation.mutate({ id: task.id, status: e.target.value })}>
-                        {STATUS_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-                      </select>
+                    {task.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{task.description}</p>}
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      <PriBadge priority={task.priority} />
+                      {task.due_date && <span className="text-xs text-slate-500 flex items-center gap-1"><Clock size={10} />{format(new Date(task.due_date), 'd. MMM', { locale: de })}</span>}
+                      {task.creator_name && task.creator_name !== task.assignee_name && <span className="text-xs text-slate-600">von {task.creator_name}</span>}
                     </div>
-                  )}
-                </div>
-              ))}
+                    {value !== 'done' && value !== 'archiv' && (
+                      <div className="mt-2 pt-2 border-t border-[#2a2a2a]">
+                        <select className="w-full text-xs py-1 px-2 rounded-lg bg-[#222] border border-[#333] text-slate-300"
+                          value={task.status} onChange={e => statusMutation.mutate({ id: task.id, status: e.target.value })}>
+                          {STATUS_OPTS.filter(s => s.value !== 'archiv').map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                ));
+              })()}
             </div>
           </div>
         ))}
@@ -158,7 +176,7 @@ function TasksTab({ groupId, groupName }) {
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Status</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-              {STATUS_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              {STATUS_OPTS.filter(s => s.value !== 'archiv').map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Priorität</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={form.priority} onChange={e => setForm(f => ({ ...f, priority: e.target.value }))}>
@@ -198,10 +216,26 @@ function DocumentsTab({ groupId }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [uploadForm, setUploadForm] = useState({ title: '', category: 'other', description: '' });
   const [editForm, setEditForm]     = useState({ title: '', category: '', description: '' });
+  const [showCatInput, setShowCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
 
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ['group-docs', groupId, catFilter],
     queryFn:  () => api.get(`/documents?group_id=${groupId}${catFilter ? `&category=${catFilter}` : ''}`)
+  });
+
+  const { data: customCats = [] } = useQuery({
+    queryKey: ['doc-categories', groupId],
+    queryFn: () => api.get(`/documents/categories?group_id=${groupId}`)
+  });
+
+  const addCatMutation = useMutation({
+    mutationFn: name => api.post('/documents/categories', { name, group_id: groupId }),
+    onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); setNewCatName(''); setShowCatInput(false); }
+  });
+  const delCatMutation = useMutation({
+    mutationFn: id => api.delete(`/documents/categories/${id}`),
+    onSuccess: () => qc.invalidateQueries(['doc-categories', groupId])
   });
 
   const uploadMutation = useMutation({
@@ -260,6 +294,44 @@ function DocumentsTab({ groupId }) {
               {c}
             </button>
           ))}
+          {customCats.map(cat => (
+            <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <button
+                onClick={() => setCatFilter(cat.name)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${catFilter === cat.name ? 'bg-orange-500 text-white' : 'bg-[#1e1e1e] border border-[#2a2a2a] text-slate-400 hover:text-white'}`}
+              >
+                {cat.icon} {cat.name}
+              </button>
+              <button
+                onClick={() => delCatMutation.mutate(cat.id)}
+                className="p-1 text-slate-600 hover:text-red-400 transition-colors rounded"
+                title="Kategorie löschen"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+          {showCatInput ? (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <input
+                autoFocus
+                placeholder="Kategoriename..."
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMutation.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
+                style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '120px' }}
+              />
+              <button onClick={() => { if (newCatName.trim()) addCatMutation.mutate(newCatName.trim()); }} className="px-2 py-1 bg-orange-500 text-white rounded-lg text-xs">+</button>
+              <button onClick={() => setShowCatInput(false)} className="px-2 py-1 text-slate-400 text-xs">✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCatInput(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e1e1e] border border-dashed border-[#2a2a2a] text-slate-400 hover:text-orange-400 whitespace-nowrap"
+            >
+              + Kategorie
+            </button>
+          )}
         </div>
       </div>
 
@@ -307,6 +379,9 @@ function DocumentsTab({ groupId }) {
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category} onChange={e => setUploadForm(f => ({ ...f, category: e.target.value }))}>
               {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i + 1]}</option>)}
+              {customCats.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>
+              ))}
             </select></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
@@ -327,6 +402,9 @@ function DocumentsTab({ groupId }) {
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
               {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i + 1]}</option>)}
+              {customCats.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>
+              ))}
             </select></div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
@@ -661,13 +739,18 @@ function ChatTab({ groupId }) {
           return (
             <div key={m.id} style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-end' }}>
               {!isOwn && (
-                <div style={{
-                  width: 30, height: 30, borderRadius: '50%',
-                  background: 'rgba(249,115,22,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '12px', fontWeight: 700, color: '#f97316', flexShrink: 0,
-                }}>
-                  {(m.username || '?')[0].toUpperCase()}
+                <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                  {m.avatar
+                    ? <img src={m.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <div style={{
+                        width: 30, height: 30,
+                        background: 'rgba(249,115,22,0.2)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '12px', fontWeight: 700, color: '#f97316',
+                      }}>
+                        {(m.username || '?')[0].toUpperCase()}
+                      </div>
+                  }
                 </div>
               )}
               <div style={{ maxWidth: '72%' }}>

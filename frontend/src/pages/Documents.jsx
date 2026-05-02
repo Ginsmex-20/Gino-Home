@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Upload, FileText, File, Image, Trash2, Edit, Download, Search, Loader2, FilePlus } from 'lucide-react';
+import { Upload, FileText, File, Image, Trash2, Edit, Download, Search, Loader2, FilePlus, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import Modal from '../components/Modal';
@@ -33,8 +33,24 @@ export default function Documents() {
   const [uploadForm, setUploadForm] = useState({ title: '', category: 'other', description: '' });
   const [selectedFile, setSelectedFile] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', category: '', description: '' });
+  const [showCatInput, setShowCatInput] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
 
   const { data: docs = [], isLoading } = useQuery({ queryKey: ['documents', catFilter], queryFn: () => api.get('/documents' + (catFilter ? `?category=${catFilter}` : '')) });
+
+  const { data: customCats = [] } = useQuery({
+    queryKey: ['doc-categories'],
+    queryFn: () => api.get('/documents/categories'),
+  });
+
+  const addCatMutation = useMutation({
+    mutationFn: name => api.post('/documents/categories', { name }),
+    onSuccess: () => { qc.invalidateQueries(['doc-categories']); setNewCatName(''); setShowCatInput(false); }
+  });
+  const delCatMutation = useMutation({
+    mutationFn: id => api.delete(`/documents/categories/${id}`),
+    onSuccess: () => qc.invalidateQueries(['doc-categories'])
+  });
 
   const uploadMutation = useMutation({
     mutationFn: fd => api.post('/documents/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } }),
@@ -90,6 +106,44 @@ export default function Documents() {
               {c}
             </button>
           ))}
+          {customCats.map(cat => (
+            <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+              <button
+                onClick={() => setCatFilter(cat.name)}
+                className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${catFilter === cat.name ? 'bg-orange-500 text-white' : 'bg-bg-card border border-border text-slate-400 hover:text-white'}`}
+              >
+                {cat.icon} {cat.name}
+              </button>
+              <button
+                onClick={() => delCatMutation.mutate(cat.id)}
+                className="p-1 text-slate-600 hover:text-red-400 transition-colors rounded"
+                title="Kategorie löschen"
+              >
+                <X size={11} />
+              </button>
+            </div>
+          ))}
+          {showCatInput ? (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+              <input
+                autoFocus
+                placeholder="Kategoriename..."
+                value={newCatName}
+                onChange={e => setNewCatName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMutation.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
+                style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '120px' }}
+              />
+              <button onClick={() => { if (newCatName.trim()) addCatMutation.mutate(newCatName.trim()); }} className="px-2 py-1 bg-orange-500 text-white rounded-lg text-xs">+</button>
+              <button onClick={() => setShowCatInput(false)} className="px-2 py-1 text-slate-400 text-xs">✕</button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setShowCatInput(true)}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium bg-bg-card border border-border text-slate-400 hover:text-orange-400 whitespace-nowrap border-dashed"
+            >
+              + Kategorie
+            </button>
+          )}
         </div>
       </div>
 
@@ -142,6 +196,9 @@ export default function Documents() {
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category} onChange={e => setUploadForm(f => ({ ...f, category: e.target.value }))}>
               {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i+1]}</option>)}
+              {customCats.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>
+              ))}
             </select>
           </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label><textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
@@ -161,6 +218,9 @@ export default function Documents() {
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
               {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i+1]}</option>)}
+              {customCats.map(cat => (
+                <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>
+              ))}
             </select>
           </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label><textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>

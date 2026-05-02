@@ -21,6 +21,8 @@ router.get('/', auth, (req, res) => {
   if (type) { query += ' AND t.type = ?'; params.push(type); }
   if (status) { query += ' AND t.status = ?'; params.push(status); }
   query += ' ORDER BY t.created_at DESC';
+  // Auto-archive: tasks marked done for more than 24 hours
+  db.prepare(`UPDATE tasks SET status = 'archiv' WHERE status = 'done' AND done_at IS NOT NULL AND done_at < datetime('now', '-24 hours')`).run();
   res.json(db.prepare(query).all(...params));
 });
 
@@ -59,7 +61,11 @@ router.put('/:id', auth, (req, res) => {
 
 router.patch('/:id/status', auth, (req, res) => {
   const { status } = req.body;
-  db.prepare('UPDATE tasks SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, req.params.id);
+  if (status === 'done') {
+    db.prepare('UPDATE tasks SET status = ?, done_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, req.params.id);
+  } else {
+    db.prepare('UPDATE tasks SET status = ?, done_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?').run(status, req.params.id);
+  }
   res.json({ success: true });
 });
 

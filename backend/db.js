@@ -207,4 +207,11 @@ for (const g of groupsWithoutCode) {
     .run(crypto.randomBytes(4).toString('hex').toUpperCase(), g.id);
 }
 
+// Archive: add done_at column to tasks
+try { db.exec(`ALTER TABLE tasks ADD COLUMN done_at DATETIME`); } catch {}
+// Rename blocked status → archiv in existing data
+try { db.exec(`UPDATE tasks SET status = 'archiv' WHERE status = 'blocked'`); } catch {}
+// Link grocery receipts to finance items
+try { db.exec(`ALTER TABLE finance_items ADD COLUMN grocery_receipt_id INTEGER`); } catch {}
+
 module.exports = db;
