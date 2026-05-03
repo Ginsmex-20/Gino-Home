@@ -5,21 +5,18 @@ const config: CapacitorConfig = {
   appName: 'Gino-Home',
   webDir: 'dist',
 
-  // Verbindung zum gehosteten Backend (Railway-URL eintragen)
-  // Wird für iOS/Android genutzt da localhost nicht erreichbar ist
-  server: {
-    url: process.env.CAPACITOR_SERVER_URL || 'https://DEINE-RAILWAY-URL.railway.app',
-    cleartext: false,
-    androidScheme: 'https',
+  // Kein server.url → App lädt die lokal gebundelte React-App (dist/)
+  // API-Calls gehen an https://ginohome.de (gesetzt via VITE_API_BASE_URL beim Build)
+  android: {
+    backgroundColor: '#0f0f0f',
+    allowMixedContent: false,
   },
 
   ios: {
     contentInset: 'automatic',
-    backgroundColor: '#161616',
-    // App läuft im Dark Mode
+    backgroundColor: '#0f0f0f',
     preferredContentMode: 'mobile',
     scrollEnabled: true,
-    limitsNavigationsToAppBoundDomains: true,
   },
 
   plugins: {

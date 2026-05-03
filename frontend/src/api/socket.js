@@ -1,12 +1,22 @@
 import { io } from 'socket.io-client';
 
-// Socket URL: In Produktion über nginx auf gleichem Origin (kein extra Port nötig!)
-// In Dev-Modus direkt auf Backend-Port 3001
+// Socket URL automatisch erkennen (analog zum API-Client)
 const getSocketURL = () => {
+  // Capacitor (iOS/Android)
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+    const base = import.meta.env.VITE_API_BASE_URL || 'https://ginohome.de/api';
+    return base.replace(/\/api\/?$/, '');
+  }
+  // Electron (file://)
+  if (typeof window !== 'undefined' && window.location.protocol === 'file:') {
+    return 'http://localhost:3001';
+  }
+  // Dev-Modus
+  if (import.meta.env.DEV) return 'http://localhost:3001';
+  // Produktion Web: nginx leitet /socket.io/ weiter
   const apiBase = import.meta.env.VITE_API_BASE_URL;
   if (apiBase) return apiBase.replace(/\/api\/?$/, '');
-  if (import.meta.env.DEV) return 'http://localhost:3001';
-  return window.location.origin; // Produktion: nginx leitet /socket.io/ weiter
+  return window.location.origin;
 };
 
 let socket = null;
