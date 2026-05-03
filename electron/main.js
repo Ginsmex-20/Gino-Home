@@ -126,6 +126,16 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// ── SSL: ginohome.de vertrauen auch bei ungültigem Zertifikat ──────────────
+app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+  if (url.startsWith('https://ginohome.de') || url.startsWith('http://ginohome.de')) {
+    event.preventDefault();
+    callback(true); // ginohome.de als vertrauenswürdig einstufen
+  } else {
+    callback(false); // alle anderen Domains normal behandeln
+  }
+});
+
 // ── App-Lifecycle ───────────────────────────────────────────────────────────
 app.whenReady().then(() => {
   // User-Agent anpassen damit Seite weiß, dass sie in Electron läuft
