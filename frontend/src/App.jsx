@@ -14,6 +14,7 @@ import Calendar from './pages/Calendar';
 import GroupView from './pages/GroupView';
 import Groceries from './pages/Groceries';
 import Notizen from './pages/Notizen';
+import Vertraege from './pages/Vertraege';
 
 /* ── Force Password Change Modal ─────────────────────────────────────── */
 function ForcePasswordChange() {
@@ -156,6 +157,7 @@ export default function App() {
         <Route path="calendar"  element={<Calendar />} />
         <Route path="groceries" element={<Groceries />} />
         <Route path="notizen"   element={<Notizen />} />
+        <Route path="vertraege" element={<Vertraege />} />
         <Route path="groups/:groupId"      element={<GroupView />} />
         <Route path="groups/:groupId/:tab" element={<GroupView />} />
       </Route>

@@ -46,15 +46,29 @@ router.get('/contracts', auth, (req, res) => {
 });
 
 router.post('/contracts', auth, (req, res) => {
-  const { title, company, amount, billing_cycle, start_date, end_date, category, status, notes, group_id } = req.body;
+  const { title, company, amount, billing_cycle, start_date, end_date, category, status, notes, group_id,
+          contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew } = req.body;
   if (!title) return res.status(400).json({ error: 'Titel erforderlich' });
-  const result = db.prepare('INSERT INTO contracts (title, company, amount, billing_cycle, start_date, end_date, category, status, notes, group_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(title, company, amount, billing_cycle, start_date, end_date, category, status || 'active', notes, group_id, req.user.id);
+  const result = db.prepare(
+    `INSERT INTO contracts (title, company, amount, billing_cycle, start_date, end_date, category, status, notes, group_id,
+      contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(title, company, amount, billing_cycle, start_date, end_date, category, status || 'active', notes, group_id || null,
+    contract_type || 'other', contract_number || null, customer_number || null, purpose || null,
+    cancel_notice_months || 1, cancel_until || null, auto_renew ? 1 : 0, req.user.id);
   res.json(db.prepare('SELECT * FROM contracts WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.put('/contracts/:id', auth, (req, res) => {
-  const { title, company, amount, billing_cycle, start_date, end_date, category, status, notes } = req.body;
-  db.prepare('UPDATE contracts SET title = ?, company = ?, amount = ?, billing_cycle = ?, start_date = ?, end_date = ?, category = ?, status = ?, notes = ? WHERE id = ? AND created_by = ?').run(title, company, amount, billing_cycle, start_date, end_date, category, status, notes, req.params.id, req.user.id);
+  const { title, company, amount, billing_cycle, start_date, end_date, category, status, notes,
+          contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew } = req.body;
+  db.prepare(
+    `UPDATE contracts SET title=?, company=?, amount=?, billing_cycle=?, start_date=?, end_date=?, category=?, status=?, notes=?,
+      contract_type=?, contract_number=?, customer_number=?, purpose=?, cancel_notice_months=?, cancel_until=?, auto_renew=?
+     WHERE id=? AND created_by=?`
+  ).run(title, company, amount, billing_cycle, start_date, end_date, category, status, notes,
+    contract_type || 'other', contract_number || null, customer_number || null, purpose || null,
+    cancel_notice_months || 1, cancel_until || null, auto_renew ? 1 : 0, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM contracts WHERE id = ?').get(req.params.id));
 });
 
@@ -70,21 +84,25 @@ router.get('/loans', auth, (req, res) => {
 });
 
 router.post('/loans', auth, (req, res) => {
-  const { title, lender, creditor, reference_number, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
+  const { title, lender, creditor, reference_number, customer_number, purpose, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
   if (!title || !total_amount) return res.status(400).json({ error: 'Titel und Gesamtbetrag erforderlich' });
   const result = db.prepare(
-    `INSERT INTO loans (title, lender, creditor, reference_number, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(title, lender || null, creditor || null, reference_number || null, type || 'loan', total_amount, remaining_amount ?? total_amount, monthly_rate || 0, interest_rate || 0, start_date || null, end_date || null, status || 'active', notes || null, req.user.id);
+    `INSERT INTO loans (title, lender, creditor, reference_number, customer_number, purpose, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(title, lender || null, creditor || null, reference_number || null, customer_number || null, purpose || null,
+    type || 'loan', total_amount, remaining_amount ?? total_amount, monthly_rate || 0, interest_rate || 0,
+    start_date || null, end_date || null, status || 'active', notes || null, req.user.id);
   res.json(db.prepare('SELECT * FROM loans WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.put('/loans/:id', auth, (req, res) => {
-  const { title, lender, creditor, reference_number, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
+  const { title, lender, creditor, reference_number, customer_number, purpose, type, total_amount, remaining_amount, monthly_rate, interest_rate, start_date, end_date, status, notes } = req.body;
   db.prepare(
-    `UPDATE loans SET title=?, lender=?, creditor=?, reference_number=?, type=?, total_amount=?, remaining_amount=?, monthly_rate=?, interest_rate=?, start_date=?, end_date=?, status=?, notes=?
+    `UPDATE loans SET title=?, lender=?, creditor=?, reference_number=?, customer_number=?, purpose=?, type=?, total_amount=?, remaining_amount=?, monthly_rate=?, interest_rate=?, start_date=?, end_date=?, status=?, notes=?
      WHERE id=? AND created_by=?`
-  ).run(title, lender || null, creditor || null, reference_number || null, type, total_amount, remaining_amount, monthly_rate || 0, interest_rate || 0, start_date || null, end_date || null, status, notes || null, req.params.id, req.user.id);
+  ).run(title, lender || null, creditor || null, reference_number || null, customer_number || null, purpose || null,
+    type, total_amount, remaining_amount, monthly_rate || 0, interest_rate || 0,
+    start_date || null, end_date || null, status, notes || null, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM loans WHERE id = ?').get(req.params.id));
 });
 

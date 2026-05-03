@@ -228,6 +228,18 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS document_subcategories (
 )`); } catch {}
 try { db.exec(`ALTER TABLE document_subcategories ADD COLUMN parent_category TEXT NOT NULL DEFAULT 'other'`); } catch {}
 
+// ── Verträge — zusätzliche Felder ────────────────────────────────────────────
+try { db.exec(`ALTER TABLE contracts ADD COLUMN contract_type TEXT DEFAULT 'other'`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN contract_number TEXT`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN customer_number TEXT`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN purpose TEXT`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN cancel_notice_months INTEGER DEFAULT 1`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN cancel_until DATE`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN auto_renew INTEGER DEFAULT 0`); } catch {}
+// ── Ratenzahlungen — zusätzliche Felder ──────────────────────────────────────
+try { db.exec(`ALTER TABLE loans ADD COLUMN customer_number TEXT`); } catch {}
+try { db.exec(`ALTER TABLE loans ADD COLUMN purpose TEXT`); } catch {}
+
 // ── Notizbuch / Workspace ────────────────────────────────────────────────────
 try { db.exec(`CREATE TABLE IF NOT EXISTS workspace_sections (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
