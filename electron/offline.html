@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gino-Home – Nicht erreichbar</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f0f0f;
+    color: #fff;
+    font-family: -apple-system, 'Segoe UI', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 0;
+    user-select: none;
+    -webkit-app-region: drag;
+  }
+  .card {
+    background: #161616;
+    border: 1px solid #232323;
+    border-radius: 24px;
+    padding: 40px 44px;
+    max-width: 440px;
+    width: calc(100% - 40px);
+    text-align: center;
+    -webkit-app-region: no-drag;
+  }
+  .icon-wrap {
+    width: 72px; height: 72px;
+    border-radius: 20px;
+    background: rgba(249,115,22,0.1);
+    border: 1px solid rgba(249,115,22,0.2);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 24px;
+  }
+  svg.logo { width: 36px; height: 36px; }
+  h1 { font-size: 22px; font-weight: 700; margin-bottom: 10px; letter-spacing: -0.3px; }
+  p  { color: #64748b; font-size: 14px; line-height: 1.6; margin-bottom: 28px; }
+  p strong { color: #94a3b8; }
+  .checklist {
+    text-align: left;
+    background: #0f0f0f;
+    border: 1px solid #1e1e1e;
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .checklist-item {
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; color: #94a3b8;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: #374151; flex-shrink: 0; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 28px;
+    background: #f97316; border: none; border-radius: 14px;
+    color: #fff; font-size: 14px; font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(249,115,22,0.35);
+    transition: background 0.15s, transform 0.1s;
+    -webkit-app-region: no-drag;
+  }
+  .btn:hover  { background: #ea580c; }
+  .btn:active { transform: scale(0.97); }
+  .version { margin-top: 24px; font-size: 11px; color: #374151; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-wrap">
+      <!-- Orange Home-Icon -->
+      <svg class="logo" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M18 5L4 16.5V31H13.5V22.5H22.5V31H32V16.5L18 5Z" fill="#f97316"/>
+      </svg>
+    </div>
+
+    <h1>Gino-Home nicht erreichbar</h1>
+    <p>Die Verbindung zu <strong>ginohome.de</strong> konnte nicht hergestellt werden.<br>Bitte prüfe Folgendes:</p>
+
+    <div class="checklist">
+      <div class="checklist-item"><div class="dot"></div>Internetverbindung aktiv?</div>
+      <div class="checklist-item"><div class="dot"></div>TrueNAS-Server läuft?</div>
+      <div class="checklist-item"><div class="dot"></div>Cloudflare-Tunnel aktiv? (<code style="font-size:11px;color:#64748b">docker compose ps</code>)</div>
+      <div class="checklist-item"><div class="dot"></div>ginohome.de im Browser erreichbar?</div>
+    </div>
+
+    <button class="btn" onclick="location.href='https://ginohome.de'">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+      </svg>
+      Erneut verbinden
+    </button>
+
+    <p class="version">Gino-Home Desktop</p>
+  </div>
+</body>
+</html>

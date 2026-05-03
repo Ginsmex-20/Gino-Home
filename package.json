@@ -10,41 +10,21 @@
   ],
   "scripts": {
     "dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\"",
-    "electron:dev": "concurrently \"npm run dev --workspace=backend\" \"npm run dev --workspace=frontend\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "electron .",
     "build:frontend": "npm run build --workspace=frontend",
-    "build:frontend:electron": "npm run build:electron --workspace=frontend",
-    "build:win":   "npm run build:frontend:electron && electron-builder --win --x64",
-    "build:mac":   "npm run build:frontend:electron && electron-builder --mac",
-    "build:linux": "npm run build:frontend:electron && electron-builder --linux",
-    "build:all":   "npm run build:frontend:electron && electron-builder --win --mac --linux",
-    "install:all": "npm install && npm install --workspace=backend && npm install --workspace=frontend",
-    "postinstall": "electron-builder install-app-deps"
+    "build:win":   "electron-builder --win --x64",
+    "build:mac":   "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all":   "electron-builder --win --mac --linux",
+    "install:all": "npm install && npm install --workspace=backend && npm install --workspace=frontend"
   },
   "build": {
     "appId": "de.gino-home.app",
     "productName": "Gino-Home",
     "copyright": "Copyright © 2024",
     "asar": true,
-    "asarUnpack": [
-      "**/node_modules/better-sqlite3/**",
-      "**/node_modules/bindings/**",
-      "**/node_modules/file-uri-to-path/**"
-    ],
-    "extraResources": [
-      {
-        "from": "backend",
-        "to": "backend",
-        "filter": [
-          "**/*",
-          "!node_modules/.cache/**",
-          "!*.db",
-          "!uploads/**"
-        ]
-      }
-    ],
     "files": [
       "electron/**/*",
-      "frontend/dist/**/*",
       "node_modules/**/*",
       "package.json"
     ],
@@ -115,14 +95,8 @@
     }
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.4",
     "concurrently": "^8.2.2",
     "electron": "^41.3.0",
-    "electron-builder": "^24.13.3",
-    "wait-on": "^7.2.0"
-  },
-  "dependencies": {
-    "png2icons": "^2.0.1",
-    "sharp": "^0.34.5"
+    "electron-builder": "^24.13.3"
   }
 }
