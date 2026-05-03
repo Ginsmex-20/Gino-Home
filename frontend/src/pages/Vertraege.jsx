@@ -4,13 +4,13 @@ import {
   FileText, Plus, Edit2, Trash2, Loader2, X,
   Phone, Wifi, Zap, Flame, Play, Shield, Home,
   BookOpen, Monitor, Activity, RefreshCw, AlertTriangle,
-  CreditCard, TrendingDown, Calendar, Hash, User, Info,
-  ChevronDown, ReceiptText,
+  CreditCard, ChevronDown, PenLine,
 } from 'lucide-react';
-import { format, differenceInDays, parseISO, addMonths, subMonths } from 'date-fns';
+import { format, differenceInDays, parseISO, subMonths } from 'date-fns';
 import { de } from 'date-fns/locale';
 import api from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
+import KuendigungModal from '../components/KuendigungModal';
 
 /* ── Konstanten ─────────────────────────────────────────────────────── */
 const CONTRACT_TYPES = [
@@ -115,6 +115,18 @@ function STextarea({ style = {}, ...p }) {
   return <textarea style={{ ...inputSt(f), resize: 'none', ...style }} onFocus={() => setF(true)} onBlur={() => setF(false)} {...p} />;
 }
 
+function SInputWithSuggestions({ id, suggestions = [], style = {}, ...p }) {
+  const [f, setF] = useState(false);
+  return (
+    <div>
+      <input list={id} style={{ ...inputSt(f), ...style }} onFocus={() => setF(true)} onBlur={() => setF(false)} {...p} />
+      <datalist id={id}>
+        {suggestions.map(s => <option key={s} value={s} />)}
+      </datalist>
+    </div>
+  );
+}
+
 function FormRow({ label, children, half }) {
   return (
     <div style={{ gridColumn: half ? 'span 1' : 'span 2' }}>
@@ -137,7 +149,7 @@ function StatusBadge({ value, list }) {
 }
 
 /* ── Vertrag-Karte ──────────────────────────────────────────────────── */
-function ContractCard({ c, onEdit, onDelete }) {
+function ContractCard({ c, onEdit, onDelete, onKuendigung }) {
   const { Icon } = getTypeInfo(c.contract_type);
   const monthly = monthlyAmount(c.amount, c.billing_cycle);
   const endDays = daysUntil(c.end_date);
@@ -226,11 +238,14 @@ function ContractCard({ c, onEdit, onDelete }) {
       )}
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', opacity: hov ? 1 : 0, transition: 'opacity 0.15s' }}>
+      <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', opacity: hov ? 1 : 0, transition: 'opacity 0.15s', flexWrap: 'wrap' }}>
+        <button onClick={() => onKuendigung(c)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', color: '#f87171', fontSize: '12px', cursor: 'pointer' }}>
+          <PenLine size={12} /> Kündigung
+        </button>
         <button onClick={() => onEdit(c)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#94a3b8', fontSize: '12px', cursor: 'pointer' }}>
           <Edit2 size={12} /> Bearbeiten
         </button>
-        <button onClick={() => onDelete(c.id, c.title)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', color: '#f87171', fontSize: '12px', cursor: 'pointer' }}>
+        <button onClick={() => onDelete(c.id, c.title)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 10px', background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '8px', color: '#f87171', fontSize: '12px', cursor: 'pointer' }}>
           <Trash2 size={12} />
         </button>
       </div>
@@ -327,10 +342,10 @@ function LoanCard({ loan, onEdit, onDelete }) {
 }
 
 /* ── Vertrag-Modal ──────────────────────────────────────────────────── */
-const EMPTY_CONTRACT = { title: '', company: '', contract_type: 'other', contract_number: '', customer_number: '', purpose: '', amount: '', billing_cycle: 'monthly', start_date: '', end_date: '', cancel_notice_months: 1, cancel_until: '', auto_renew: false, status: 'active', notes: '' };
+const EMPTY_CONTRACT = { title: '', company: '', contract_type: 'other', contract_number: '', customer_number: '', purpose: '', phone_number: '', amount: '', billing_cycle: 'monthly', start_date: '', end_date: '', cancel_notice_months: 1, cancel_until: '', auto_renew: false, status: 'active', notes: '' };
 const EMPTY_LOAN     = { title: '', lender: '', creditor: '', type: 'loan', total_amount: '', remaining_amount: '', monthly_rate: '', interest_rate: '', reference_number: '', customer_number: '', purpose: '', start_date: '', end_date: '', status: 'active', notes: '' };
 
-function ContractModal({ item, onClose, onSave, loading }) {
+function ContractModal({ item, onClose, onSave, loading, suggestions = {} }) {
   const [form, setForm] = useState(() => item ? { ...EMPTY_CONTRACT, ...item, auto_renew: !!item.auto_renew } : { ...EMPTY_CONTRACT });
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
@@ -392,16 +407,46 @@ function ContractModal({ item, onClose, onSave, loading }) {
             </FormRow>
 
             <FormRow label="Kundennummer" half>
-              <SInput value={form.customer_number} onChange={e => set('customer_number', e.target.value)} placeholder="Kundennr." />
+              <SInputWithSuggestions
+                id="sug-customer-no"
+                suggestions={suggestions.customerNumbers || []}
+                value={form.customer_number}
+                onChange={e => set('customer_number', e.target.value)}
+                placeholder="Kundennr."
+              />
             </FormRow>
 
             <FormRow label="Vertragsnummer" half>
-              <SInput value={form.contract_number} onChange={e => set('contract_number', e.target.value)} placeholder="Vertragsnr." />
+              <SInputWithSuggestions
+                id="sug-contract-no"
+                suggestions={suggestions.contractNumbers || []}
+                value={form.contract_number}
+                onChange={e => set('contract_number', e.target.value)}
+                placeholder="Vertragsnr."
+              />
             </FormRow>
 
             <FormRow label="Verwendungszweck">
-              <SInput value={form.purpose} onChange={e => set('purpose', e.target.value)} placeholder="z.B. Privatnutzung" />
+              <SInputWithSuggestions
+                id="sug-purpose"
+                suggestions={suggestions.purposes || []}
+                value={form.purpose}
+                onChange={e => set('purpose', e.target.value)}
+                placeholder="z.B. Privatnutzung"
+              />
             </FormRow>
+
+            {/* Handynummer — nur für Mobilfunk */}
+            {form.contract_type === 'mobile' && (
+              <FormRow label="Handynummer" half>
+                <SInput
+                  type="tel"
+                  value={form.phone_number}
+                  onChange={e => set('phone_number', e.target.value)}
+                  placeholder="+49 123 456789"
+                />
+              </FormRow>
+            )}
 
             <FormRow label="Betrag (€)" half>
               <SInput type="number" step="0.01" min="0" value={form.amount} onChange={e => set('amount', e.target.value)} placeholder="0.00" />
@@ -575,10 +620,11 @@ function LoanModal({ item, onClose, onSave, loading }) {
 /* ── Haupt-Seite ────────────────────────────────────────────────────── */
 export default function Vertraege() {
   const qc = useQueryClient();
-  const [tab, setTab]             = useState('contracts');
-  const [statusFilter, setFilter] = useState('all');
-  const [modal, setModal]         = useState(null);   // null | { type: 'contract'|'loan', item: obj|null }
-  const [confirm, setConfirm]     = useState({ open: false, id: null, title: '', type: '' });
+  const [tab, setTab]               = useState('contracts');
+  const [statusFilter, setFilter]   = useState('all');
+  const [modal, setModal]           = useState(null);   // null | { type: 'contract'|'loan', item: obj|null }
+  const [confirm, setConfirm]       = useState({ open: false, id: null, title: '', type: '' });
+  const [kuendigungContract, setKuendigungContract] = useState(null);
 
   /* Queries */
   const { data: contracts = [], isLoading: cLoading } = useQuery({ queryKey: ['contracts'], queryFn: () => api.get('/finance/contracts') });
@@ -601,6 +647,14 @@ export default function Vertraege() {
     mutationFn: id => api.delete(`/finance/loans/${id}`),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['loans'] }); qc.invalidateQueries({ queryKey: ['finance-summary'] }); setConfirm(c => ({ ...c, open: false })); },
   });
+
+  /* Autocomplete suggestions from existing contracts */
+  const suggestions = useMemo(() => ({
+    customerNumbers: [...new Set(contracts.map(c => c.customer_number).filter(Boolean))],
+    contractNumbers: [...new Set(contracts.map(c => c.contract_number).filter(Boolean))],
+    purposes:        [...new Set(contracts.map(c => c.purpose).filter(Boolean))],
+    companies:       [...new Set(contracts.map(c => c.company).filter(Boolean))],
+  }), [contracts]);
 
   /* Filtered lists */
   const filteredContracts = useMemo(() =>
@@ -733,6 +787,7 @@ export default function Vertraege() {
                 key={c.id} c={c}
                 onEdit={item => setModal({ type: 'contract', item })}
                 onDelete={(id, title) => openDelete(id, title, 'contract')}
+                onKuendigung={setKuendigungContract}
               />
             ))}
           </div>
@@ -763,6 +818,7 @@ export default function Vertraege() {
           onClose={() => setModal(null)}
           onSave={d => saveContract.mutate(d)}
           loading={saveContract.isPending}
+          suggestions={suggestions}
         />
       )}
       {modal?.type === 'loan' && (
@@ -771,6 +827,13 @@ export default function Vertraege() {
           onClose={() => setModal(null)}
           onSave={d => saveLoan.mutate(d)}
           loading={saveLoan.isPending}
+        />
+      )}
+
+      {kuendigungContract && (
+        <KuendigungModal
+          contract={kuendigungContract}
+          onClose={() => setKuendigungContract(null)}
         />
       )}
 

@@ -74,16 +74,22 @@ router.post('/login', async (req, res) => {
 
 // ── ME ────────────────────────────────────────────────────────────────────────
 router.get('/me', auth, (req, res) => {
-  const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at, force_password_change FROM users WHERE id = ?').get(req.user.id);
+  const user = db.prepare(
+    'SELECT id, username, email, avatar, bio, phone, first_name, last_name, street, house_number, postal_code, city, country, created_at, force_password_change FROM users WHERE id = ?'
+  ).get(req.user.id);
   if (!user) return res.status(404).json({ error: 'Nicht gefunden' });
   res.json(user);
 });
 
 // ── PROFIL BEARBEITEN ─────────────────────────────────────────────────────────
 router.put('/profile', auth, (req, res) => {
-  const { username, bio, phone } = req.body;
-  db.prepare('UPDATE users SET username = ?, bio = ?, phone = ? WHERE id = ?').run(username, bio, phone, req.user.id);
-  const user = db.prepare('SELECT id, username, email, avatar, bio, phone, created_at FROM users WHERE id = ?').get(req.user.id);
+  const { username, bio, phone, first_name, last_name, street, house_number, postal_code, city, country } = req.body;
+  db.prepare(
+    `UPDATE users SET username=?, bio=?, phone=?, first_name=?, last_name=?, street=?, house_number=?, postal_code=?, city=?, country=? WHERE id=?`
+  ).run(username, bio || null, phone || null, first_name || null, last_name || null, street || null, house_number || null, postal_code || null, city || null, country || 'Deutschland', req.user.id);
+  const user = db.prepare(
+    'SELECT id, username, email, avatar, bio, phone, first_name, last_name, street, house_number, postal_code, city, country, created_at FROM users WHERE id = ?'
+  ).get(req.user.id);
   res.json(user);
 });
 

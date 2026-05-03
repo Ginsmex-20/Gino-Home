@@ -47,28 +47,28 @@ router.get('/contracts', auth, (req, res) => {
 
 router.post('/contracts', auth, (req, res) => {
   const { title, company, amount, billing_cycle, start_date, end_date, category, status, notes, group_id,
-          contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew } = req.body;
+          contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew, phone_number } = req.body;
   if (!title) return res.status(400).json({ error: 'Titel erforderlich' });
   const result = db.prepare(
     `INSERT INTO contracts (title, company, amount, billing_cycle, start_date, end_date, category, status, notes, group_id,
-      contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew, phone_number, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(title, company, amount, billing_cycle, start_date, end_date, category, status || 'active', notes, group_id || null,
     contract_type || 'other', contract_number || null, customer_number || null, purpose || null,
-    cancel_notice_months || 1, cancel_until || null, auto_renew ? 1 : 0, req.user.id);
+    cancel_notice_months || 1, cancel_until || null, auto_renew ? 1 : 0, phone_number || null, req.user.id);
   res.json(db.prepare('SELECT * FROM contracts WHERE id = ?').get(result.lastInsertRowid));
 });
 
 router.put('/contracts/:id', auth, (req, res) => {
   const { title, company, amount, billing_cycle, start_date, end_date, category, status, notes,
-          contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew } = req.body;
+          contract_type, contract_number, customer_number, purpose, cancel_notice_months, cancel_until, auto_renew, phone_number } = req.body;
   db.prepare(
     `UPDATE contracts SET title=?, company=?, amount=?, billing_cycle=?, start_date=?, end_date=?, category=?, status=?, notes=?,
-      contract_type=?, contract_number=?, customer_number=?, purpose=?, cancel_notice_months=?, cancel_until=?, auto_renew=?
+      contract_type=?, contract_number=?, customer_number=?, purpose=?, cancel_notice_months=?, cancel_until=?, auto_renew=?, phone_number=?
      WHERE id=? AND created_by=?`
   ).run(title, company, amount, billing_cycle, start_date, end_date, category, status, notes,
     contract_type || 'other', contract_number || null, customer_number || null, purpose || null,
-    cancel_notice_months || 1, cancel_until || null, auto_renew ? 1 : 0, req.params.id, req.user.id);
+    cancel_notice_months || 1, cancel_until || null, auto_renew ? 1 : 0, phone_number || null, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM contracts WHERE id = ?').get(req.params.id));
 });
 

@@ -288,7 +288,18 @@ function UserManagement() {
 export default function Profile() {
   const { user, updateUser, isOwner } = useAuth();
   const fileRef = useRef();
-  const [profile, setProfile]   = useState({ username: user?.username || '', bio: user?.bio || '', phone: user?.phone || '' });
+  const [profile, setProfile]   = useState({
+    username:     user?.username     || '',
+    bio:          user?.bio          || '',
+    phone:        user?.phone        || '',
+    first_name:   user?.first_name   || '',
+    last_name:    user?.last_name    || '',
+    street:       user?.street       || '',
+    house_number: user?.house_number || '',
+    postal_code:  user?.postal_code  || '',
+    city:         user?.city         || '',
+    country:      user?.country      || 'Deutschland',
+  });
   const [passwords, setPasswords] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [pwError, setPwError]   = useState('');
   const [pwSuccess, setPwSuccess] = useState(false);
@@ -424,21 +435,56 @@ export default function Profile() {
         </div>
       </Card>
 
-      {/* ── Profil bearbeiten ─────────────────────────────────────────── */}
+      {/* ── Persönliche Daten ─────────────────────────────────────────── */}
       <Card>
-        <CardHeader icon={User} title="Profil bearbeiten" />
+        <CardHeader icon={User} title="Persönliche Daten" />
         <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
           {profileSuccess && <Alert type="success">Profil erfolgreich gespeichert!</Alert>}
 
-          <Field label="Benutzername" icon={AtSign}>
-            <StyledInput value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} />
+          {/* Name row */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <Field label="Vorname" icon={User}>
+              <StyledInput placeholder="Max" value={profile.first_name} onChange={e => setProfile(p => ({ ...p, first_name: e.target.value }))} />
+            </Field>
+            <Field label="Nachname" icon={User}>
+              <StyledInput placeholder="Mustermann" value={profile.last_name} onChange={e => setProfile(p => ({ ...p, last_name: e.target.value }))} />
+            </Field>
+          </div>
+
+          {/* Address */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px' }}>
+            <Field label="Straße" icon={FileText}>
+              <StyledInput placeholder="Musterstraße" value={profile.street} onChange={e => setProfile(p => ({ ...p, street: e.target.value }))} />
+            </Field>
+            <Field label="Nr.">
+              <StyledInput placeholder="1" value={profile.house_number} onChange={e => setProfile(p => ({ ...p, house_number: e.target.value }))} style={{ width: '70px' }} />
+            </Field>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '12px' }}>
+            <Field label="PLZ">
+              <StyledInput placeholder="12345" value={profile.postal_code} onChange={e => setProfile(p => ({ ...p, postal_code: e.target.value }))} style={{ width: '90px' }} />
+            </Field>
+            <Field label="Ort">
+              <StyledInput placeholder="Musterstadt" value={profile.city} onChange={e => setProfile(p => ({ ...p, city: e.target.value }))} />
+            </Field>
+          </div>
+
+          <Field label="Land">
+            <StyledInput placeholder="Deutschland" value={profile.country} onChange={e => setProfile(p => ({ ...p, country: e.target.value }))} />
           </Field>
-          <Field label="Telefon" icon={Phone}>
-            <StyledInput placeholder="+49 123 456789" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
-          </Field>
-          <Field label="Bio" icon={FileText}>
-            <StyledTextarea rows={3} placeholder="Ein paar Worte über dich…" value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} />
-          </Field>
+
+          <div style={{ borderTop: '1px solid #1e1e1e', paddingTop: '14px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <Field label="Benutzername" icon={AtSign}>
+              <StyledInput value={profile.username} onChange={e => setProfile(p => ({ ...p, username: e.target.value }))} />
+            </Field>
+            <Field label="Telefon" icon={Phone}>
+              <StyledInput placeholder="+49 123 456789" value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} />
+            </Field>
+            <Field label="Bio" icon={FileText}>
+              <StyledTextarea rows={3} placeholder="Ein paar Worte über dich…" value={profile.bio} onChange={e => setProfile(p => ({ ...p, bio: e.target.value }))} />
+            </Field>
+          </div>
 
           <div>
             <PrimaryBtn loading={saveMutation.isPending} icon={Save} onClick={() => saveMutation.mutate(profile)}>

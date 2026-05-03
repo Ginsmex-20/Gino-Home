@@ -228,6 +228,15 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS document_subcategories (
 )`); } catch {}
 try { db.exec(`ALTER TABLE document_subcategories ADD COLUMN parent_category TEXT NOT NULL DEFAULT 'other'`); } catch {}
 
+// ── Nutzer — persönliche Daten ────────────────────────────────────────────────
+try { db.exec(`ALTER TABLE users ADD COLUMN first_name TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN last_name TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN street TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN house_number TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN postal_code TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN city TEXT`); } catch {}
+try { db.exec(`ALTER TABLE users ADD COLUMN country TEXT DEFAULT 'Deutschland'`); } catch {}
+
 // ── Verträge — zusätzliche Felder ────────────────────────────────────────────
 try { db.exec(`ALTER TABLE contracts ADD COLUMN contract_type TEXT DEFAULT 'other'`); } catch {}
 try { db.exec(`ALTER TABLE contracts ADD COLUMN contract_number TEXT`); } catch {}
@@ -236,6 +245,7 @@ try { db.exec(`ALTER TABLE contracts ADD COLUMN purpose TEXT`); } catch {}
 try { db.exec(`ALTER TABLE contracts ADD COLUMN cancel_notice_months INTEGER DEFAULT 1`); } catch {}
 try { db.exec(`ALTER TABLE contracts ADD COLUMN cancel_until DATE`); } catch {}
 try { db.exec(`ALTER TABLE contracts ADD COLUMN auto_renew INTEGER DEFAULT 0`); } catch {}
+try { db.exec(`ALTER TABLE contracts ADD COLUMN phone_number TEXT`); } catch {}
 // ── Ratenzahlungen — zusätzliche Felder ──────────────────────────────────────
 try { db.exec(`ALTER TABLE loans ADD COLUMN customer_number TEXT`); } catch {}
 try { db.exec(`ALTER TABLE loans ADD COLUMN purpose TEXT`); } catch {}
