@@ -5,17 +5,17 @@ import {
   FileText, Link, FolderOpen, Folder, Save, X, ExternalLink, Loader2
 } from 'lucide-react';
 import api from '../api/client';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const COLORS = ['#f97316','#2563eb','#16a34a','#dc2626','#d97706','#db2777','#0891b2','#7c3aed'];
 
-// ── Kleines Eingabefeld inline ────────────────────────────────────────────────
+/* ── Inline-Eingabe ──────────────────────────────────────────────────────── */
 function InlineInput({ placeholder, onSave, onCancel, defaultValue = '' }) {
   const [val, setVal] = useState(defaultValue);
   return (
     <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
       <input
-        autoFocus
-        value={val}
+        autoFocus value={val}
         onChange={e => setVal(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter' && val.trim()) onSave(val.trim()); if (e.key === 'Escape') onCancel(); }}
         placeholder={placeholder}
@@ -27,59 +27,93 @@ function InlineInput({ placeholder, onSave, onCancel, defaultValue = '' }) {
   );
 }
 
-// ── Section-Baum (rekursiv) ───────────────────────────────────────────────────
+/* ── Section-Zeile (einzelne Ordner-Zeile mit Hover-Buttons) ─────────────── */
+function SectionRow({ s, isActive, depth, children, hasChildren, isOpen, onToggle, onSelect, onAdd, onDelete, onRename }) {
+  const [hovered, setHovered] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+
+  return (
+    <div>
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => { onSelect(s.id); if (hasChildren) onToggle(); }}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '4px',
+          padding: `6px 8px 6px ${8 + depth * 14}px`,
+          borderRadius: '10px', cursor: 'pointer',
+          background: isActive ? 'rgba(249,115,22,0.15)' : hovered ? 'rgba(255,255,255,0.04)' : 'transparent',
+          border: isActive ? '1px solid rgba(249,115,22,0.3)' : '1px solid transparent',
+          transition: 'background 0.12s',
+        }}
+      >
+        {hasChildren
+          ? <button onClick={e => { e.stopPropagation(); onToggle(); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>
+              {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
+          : <span style={{ width: 12, flexShrink: 0 }} />}
+
+        <Folder size={13} style={{ color: isActive ? '#f97316' : '#475569', flexShrink: 0 }} />
+
+        {renaming ? (
+          <InlineInput
+            defaultValue={s.title}
+            placeholder="Name..."
+            onSave={title => { onRename(s.id, title); setRenaming(false); }}
+            onCancel={() => setRenaming(false)}
+          />
+        ) : (
+          <>
+            <span style={{ flex: 1, fontSize: '13px', fontWeight: isActive ? 600 : 400, color: isActive ? '#f97316' : '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {s.title}
+            </span>
+
+            {/* Hover-Aktionen */}
+            <div style={{ display: 'flex', gap: '2px', opacity: hovered || isActive ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}>
+              <button onClick={e => { e.stopPropagation(); setRenaming(true); }}
+                style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '3px', borderRadius: '5px' }} title="Umbenennen">
+                <Edit size={11} />
+              </button>
+              <button onClick={e => { e.stopPropagation(); onAdd(s.id); }}
+                style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '3px', borderRadius: '5px' }} title="Unterordner">
+                <FolderOpen size={11} />
+              </button>
+              <button onClick={e => { e.stopPropagation(); onDelete(s.id, s.title); }}
+                style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '3px', borderRadius: '5px' }} title="Löschen">
+                <Trash2 size={11} />
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+      {isOpen && children}
+    </div>
+  );
+}
+
+/* ── Section-Baum (rekursiv) ─────────────────────────────────────────────── */
 function SectionTree({ sections, activeId, onSelect, onAdd, onDelete, onRename, depth = 0 }) {
   const [openMap, setOpenMap] = useState({});
-  const [renamingId, setRenamingId] = useState(null);
-
-  const roots = sections.filter(s => depth === 0 ? !s.parent_id : false);
-  const items = depth === 0 ? roots : sections.filter(s => true); // passed from parent
-
   const toggle = id => setOpenMap(m => ({ ...m, [id]: !m[id] }));
+  const list = depth === 0 ? sections.filter(s => !s.parent_id) : sections;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-      {(depth === 0 ? sections.filter(s => !s.parent_id) : sections).map(s => {
+      {list.map(s => {
         const children = sections.filter(c => c.parent_id === s.id);
-        const isOpen = openMap[s.id];
-        const isActive = activeId === s.id;
         return (
-          <div key={s.id}>
-            <div
-              style={{
-                display: 'flex', alignItems: 'center', gap: '4px',
-                padding: `6px ${8 + depth * 14}px 6px 8px`,
-                borderRadius: '10px', cursor: 'pointer',
-                background: isActive ? 'rgba(249,115,22,0.15)' : 'transparent',
-                border: isActive ? '1px solid rgba(249,115,22,0.3)' : '1px solid transparent',
-              }}
-              onClick={() => { onSelect(s.id); if (children.length) toggle(s.id); }}
-            >
-              {children.length > 0
-                ? <button onClick={e => { e.stopPropagation(); toggle(s.id); }} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 0, lineHeight: 1 }}>
-                    {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                  </button>
-                : <span style={{ width: 12 }} />}
-              <Folder size={13} style={{ color: '#475569', flexShrink: 0 }} />
-              {renamingId === s.id ? (
-                <InlineInput
-                  defaultValue={s.title}
-                  placeholder="Name..."
-                  onSave={title => { onRename(s.id, title); setRenamingId(null); }}
-                  onCancel={() => setRenamingId(null)}
-                />
-              ) : (
-                <>
-                  <span style={{ flex: 1, fontSize: '13px', fontWeight: isActive ? 600 : 400, color: isActive ? '#f97316' : '#cbd5e1', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</span>
-                  <div style={{ display: 'flex', gap: '2px', opacity: 0 }} className="section-actions">
-                    <button onClick={e => { e.stopPropagation(); setRenamingId(s.id); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '2px' }} title="Umbenennen"><Edit size={11} /></button>
-                    <button onClick={e => { e.stopPropagation(); onAdd(s.id); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '2px' }} title="Unterordner"><FolderOpen size={11} /></button>
-                    <button onClick={e => { e.stopPropagation(); onDelete(s.id); }} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '2px' }} title="Löschen"><Trash2 size={11} /></button>
-                  </div>
-                </>
-              )}
-            </div>
-            {isOpen && children.length > 0 && (
+          <SectionRow
+            key={s.id} s={s} depth={depth}
+            isActive={activeId === s.id}
+            hasChildren={children.length > 0}
+            isOpen={!!openMap[s.id]}
+            onToggle={() => toggle(s.id)}
+            onSelect={onSelect}
+            onAdd={onAdd}
+            onDelete={onDelete}
+            onRename={onRename}
+          >
+            {children.length > 0 && openMap[s.id] && (
               <SectionTree
                 sections={children}
                 activeId={activeId}
@@ -90,17 +124,18 @@ function SectionTree({ sections, activeId, onSelect, onAdd, onDelete, onRename, 
                 depth={depth + 1}
               />
             )}
-          </div>
+          </SectionRow>
         );
       })}
     </div>
   );
 }
 
-// ── Item-Karte ────────────────────────────────────────────────────────────────
+/* ── Item-Karte (Notiz oder Link) ────────────────────────────────────────── */
 function ItemCard({ item, onDelete, onEdit }) {
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ title: item.title, content: item.content || '', url: item.url || '' });
+  const [editing, setEditing]   = useState(false);
+  const [hovered, setHovered]   = useState(false);
+  const [form, setForm]         = useState({ title: item.title, content: item.content || '', url: item.url || '' });
 
   if (editing) {
     return (
@@ -126,10 +161,15 @@ function ItemCard({ item, onDelete, onEdit }) {
   }
 
   return (
-    <div style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: '14px', padding: '14px 16px', position: 'relative' }}
-      className="workspace-item">
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ background: '#1a1a1a', border: `1px solid ${hovered ? '#2a2a2a' : '#1e1e1e'}`, borderRadius: '14px', padding: '14px 16px', position: 'relative', transition: 'border-color 0.15s' }}
+    >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        {item.type === 'link' ? <Link size={14} style={{ color: '#60a5fa', marginTop: '2px', flexShrink: 0 }} /> : <FileText size={14} style={{ color: '#94a3b8', marginTop: '2px', flexShrink: 0 }} />}
+        {item.type === 'link'
+          ? <Link size={14} style={{ color: '#60a5fa', marginTop: '2px', flexShrink: 0 }} />
+          : <FileText size={14} style={{ color: '#94a3b8', marginTop: '2px', flexShrink: 0 }} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0 }}>{item.title}</p>
@@ -146,25 +186,30 @@ function ItemCard({ item, onDelete, onEdit }) {
             <p style={{ fontSize: '13px', color: '#94a3b8', margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{item.content}</p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '4px' }} className="item-actions">
+        {/* Aktionen — sichtbar bei Hover */}
+        <div style={{ display: 'flex', gap: '4px', opacity: hovered ? 1 : 0, transition: 'opacity 0.15s', flexShrink: 0 }}>
           <button onClick={() => setEditing(true)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px', borderRadius: '6px' }} title="Bearbeiten"><Edit size={13} /></button>
-          <button onClick={() => onDelete(item.id)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px', borderRadius: '6px' }} title="Löschen"><Trash2 size={13} /></button>
+          <button onClick={() => onDelete(item.id, item.title)} style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px', borderRadius: '6px' }} title="Löschen"><Trash2 size={13} /></button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Haupt-Komponente ──────────────────────────────────────────────────────────
+/* ── Haupt-Komponente ────────────────────────────────────────────────────── */
 export default function Notizen({ groupId = null }) {
   const qc = useQueryClient();
   const [activeSection, setActiveSection] = useState(null);
   const [addingSection, setAddingSection]  = useState(false);
   const [addingSubOf, setAddingSubOf]      = useState(null);
-  const [addingItem, setAddingItem]        = useState(null); // 'note' | 'link' | null
+  const [addingItem, setAddingItem]        = useState(null);
   const [newItemForm, setNewItemForm]      = useState({ title: '', content: '', url: '' });
 
-  // Daten laden
+  /* Bestätigungs-Dialog */
+  const [confirm, setConfirm] = useState({ open: false, title: '', message: '', onConfirm: null });
+  const askConfirm = (title, message, onConfirm) => setConfirm({ open: true, title, message, onConfirm });
+  const closeConfirm = () => setConfirm(c => ({ ...c, open: false }));
+
   const qKey = ['workspace-sections', groupId];
   const { data: sections = [], isLoading } = useQuery({
     queryKey: qKey,
@@ -179,7 +224,6 @@ export default function Notizen({ groupId = null }) {
     enabled: !!activeSection,
   });
 
-  // Mutations
   const addSection = useMutation({
     mutationFn: ({ title, parent_id }) => api.post('/workspace/sections', { title, parent_id: parent_id || null, group_id: groupId }),
     onSuccess: () => { qc.invalidateQueries(qKey); setAddingSection(false); setAddingSubOf(null); },
@@ -187,11 +231,11 @@ export default function Notizen({ groupId = null }) {
 
   const delSection = useMutation({
     mutationFn: id => api.delete(`/workspace/sections/${id}`),
-    onSuccess: () => { qc.invalidateQueries(qKey); if (activeSection) setActiveSection(null); },
+    onSuccess: () => { qc.invalidateQueries(qKey); setActiveSection(null); },
   });
 
   const renameSection = useMutation({
-    mutationFn: ({ id, title }) => api.put(`/workspace/sections/${id}`, { title, icon: sections.find(s => s.id === id)?.icon || '📂', color: '#f97316' }),
+    mutationFn: ({ id, title }) => api.put(`/workspace/sections/${id}`, { title, color: '#f97316' }),
     onSuccess: () => qc.invalidateQueries(qKey),
   });
 
@@ -210,6 +254,22 @@ export default function Notizen({ groupId = null }) {
     onSuccess: () => qc.invalidateQueries(['workspace-items', activeSection]),
   });
 
+  const handleDeleteSection = (id, title) => {
+    askConfirm(
+      'Ordner löschen?',
+      `„${title}" und alle darin enthaltenen Inhalte werden dauerhaft gelöscht.`,
+      () => { delSection.mutate(id); closeConfirm(); }
+    );
+  };
+
+  const handleDeleteItem = (id, title) => {
+    askConfirm(
+      'Eintrag löschen?',
+      `„${title}" wird dauerhaft gelöscht.`,
+      () => { delItem.mutate(id); closeConfirm(); }
+    );
+  };
+
   const handleAddItem = () => {
     if (!newItemForm.title.trim()) return;
     addItem.mutate({ type: addingItem, title: newItemForm.title.trim(), content: newItemForm.content, url: newItemForm.url });
@@ -218,7 +278,7 @@ export default function Notizen({ groupId = null }) {
   return (
     <div style={{ display: 'flex', height: 'calc(100vh - 120px)', gap: '16px', minHeight: '500px' }}>
 
-      {/* ── Linke Sidebar: Ordner-Baum ─────────────────────────────────────── */}
+      {/* ── Linke Sidebar ────────────────────────────────────────────────────── */}
       <div style={{ width: '220px', flexShrink: 0, background: '#111', borderRadius: '16px', border: '1px solid #1e1e1e', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', overflowY: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <p style={{ fontSize: '11px', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.07em', margin: 0 }}>Ordner</p>
@@ -228,11 +288,7 @@ export default function Notizen({ groupId = null }) {
         </div>
 
         {addingSection && (
-          <InlineInput
-            placeholder="Ordner-Name..."
-            onSave={title => addSection.mutate({ title })}
-            onCancel={() => setAddingSection(false)}
-          />
+          <InlineInput placeholder="Ordner-Name..." onSave={title => addSection.mutate({ title })} onCancel={() => setAddingSection(false)} />
         )}
 
         {isLoading
@@ -245,13 +301,12 @@ export default function Notizen({ groupId = null }) {
                 activeId={activeSection}
                 onSelect={setActiveSection}
                 onAdd={parentId => setAddingSubOf(parentId)}
-                onDelete={id => delSection.mutate(id)}
+                onDelete={handleDeleteSection}
                 onRename={(id, title) => renameSection.mutate({ id, title })}
               />
             )
         }
 
-        {/* Unterordner inline hinzufügen */}
         {addingSubOf && (
           <InlineInput
             placeholder="Unterordner-Name..."
@@ -261,7 +316,7 @@ export default function Notizen({ groupId = null }) {
         )}
       </div>
 
-      {/* ── Rechte Seite: Inhalt ────────────────────────────────────────────── */}
+      {/* ── Rechter Inhaltsbereich ────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto' }}>
         {!activeSection ? (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#334155', textAlign: 'center', gap: '12px' }}>
@@ -292,7 +347,7 @@ export default function Notizen({ groupId = null }) {
               </div>
             </div>
 
-            {/* Neue-Item-Formular */}
+            {/* Neues-Item-Formular */}
             {addingItem && (
               <div style={{ background: '#1a1a1a', border: '1px solid #f97316', borderRadius: '14px', padding: '16px' }}>
                 <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -330,7 +385,7 @@ export default function Notizen({ groupId = null }) {
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                     {items.map(item => (
                       <ItemCard key={item.id} item={item}
-                        onDelete={id => delItem.mutate(id)}
+                        onDelete={handleDeleteItem}
                         onEdit={(id, data) => editItem.mutate({ id, ...data })}
                       />
                     ))}
@@ -340,13 +395,16 @@ export default function Notizen({ groupId = null }) {
         )}
       </div>
 
-      {/* CSS für Hover-Effekte */}
-      <style>{`
-        .section-actions { opacity: 0; transition: opacity 0.15s; }
-        div:hover > div > .section-actions { opacity: 1; }
-        .item-actions { opacity: 0; transition: opacity 0.15s; }
-        .workspace-item:hover .item-actions { opacity: 1; }
-      `}</style>
+      {/* Bestätigungs-Dialog */}
+      <ConfirmDialog
+        open={confirm.open}
+        title={confirm.title}
+        message={confirm.message}
+        confirmLabel="Löschen"
+        danger
+        onConfirm={confirm.onConfirm}
+        onCancel={closeConfirm}
+      />
     </div>
   );
 }
