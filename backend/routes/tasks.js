@@ -4,25 +4,46 @@ const auth = require('../middleware/auth');
 
 router.get('/', auth, (req, res) => {
   const { group_id, type, status } = req.query;
-  let query = `
-    SELECT t.*,
-      u.username as assignee_name, u.avatar as assignee_avatar,
-      c.username as creator_name, g.name as group_name
-    FROM tasks t
-    LEFT JOIN users u ON t.assignee_id = u.id
-    LEFT JOIN users c ON t.created_by = c.id
-    LEFT JOIN groups g ON t.group_id = g.id
-    WHERE (t.created_by = ? OR t.group_id IN (
-      SELECT group_id FROM group_members WHERE user_id = ?
-    ))
-  `;
-  const params = [req.user.id, req.user.id];
-  if (group_id) { query += ' AND t.group_id = ?'; params.push(group_id); }
-  if (type) { query += ' AND t.type = ?'; params.push(type); }
-  if (status) { query += ' AND t.status = ?'; params.push(status); }
-  query += ' ORDER BY t.created_at DESC';
+
   // Auto-archive: tasks marked done for more than 24 hours
   db.prepare(`UPDATE tasks SET status = 'archiv' WHERE status = 'done' AND done_at IS NOT NULL AND done_at < datetime('now', '-24 hours')`).run();
+
+  let query, params;
+
+  if (group_id) {
+    // Gruppenaufgaben: Mitgliedschaft prüfen, nur diese Gruppe zurückgeben
+    const member = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+    if (!member) return res.status(403).json({ error: 'Kein Zugriff' });
+    query = `
+      SELECT t.*,
+        u.username as assignee_name, u.avatar as assignee_avatar,
+        c.username as creator_name, g.name as group_name
+      FROM tasks t
+      LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN users c ON t.created_by = c.id
+      LEFT JOIN groups g ON t.group_id = g.id
+      WHERE t.group_id = ?
+    `;
+    params = [group_id];
+  } else {
+    // Persönliche Aufgaben: NUR tasks ohne Gruppe
+    query = `
+      SELECT t.*,
+        u.username as assignee_name, u.avatar as assignee_avatar,
+        c.username as creator_name, g.name as group_name
+      FROM tasks t
+      LEFT JOIN users u ON t.assignee_id = u.id
+      LEFT JOIN users c ON t.created_by = c.id
+      LEFT JOIN groups g ON t.group_id = g.id
+      WHERE t.group_id IS NULL AND t.created_by = ?
+    `;
+    params = [req.user.id];
+  }
+
+  if (type)   { query += ' AND t.type = ?';   params.push(type); }
+  if (status) { query += ' AND t.status = ?'; params.push(status); }
+  query += ' ORDER BY t.created_at DESC';
+
   res.json(db.prepare(query).all(...params));
 });
 

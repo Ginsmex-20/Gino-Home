@@ -124,6 +124,7 @@ app.use('/api/document-categories',require('./routes/documents'));
 app.use('/api/vault',              require('./routes/vault'));
 app.use('/api/calendar',           require('./routes/calendar'));
 app.use('/api/grocery',            require('./routes/grocery'));
+app.use('/api/workspace',          require('./routes/workspace'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 

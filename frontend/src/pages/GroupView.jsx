@@ -5,7 +5,7 @@ import {
   CheckSquare, FileText, Calendar as CalIcon, Users, ArrowLeft,
   Plus, Trash2, Loader2, UserMinus, Crown, Hash, RefreshCw, Copy,
   Edit, Upload, Search, Download, Image, File, Clock, Home,
-  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send, X
+  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send, X, BookOpen
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -16,6 +16,7 @@ import Modal from '../components/Modal';
 import api from '../api/client';
 import useAuth from '../stores/auth';
 import { getSocket } from '../api/socket';
+import NotizenPage from './Notizen';
 
 // ── Shared constants ─────────────────────────────────────────────────────────
 const STATUS_OPTS = [
@@ -205,29 +206,75 @@ function TasksTab({ groupId, groupName }) {
 // ════════════════════════════════════════════════════════════════════════════
 // TAB: DOKUMENTE
 // ════════════════════════════════════════════════════════════════════════════
+const DOC_FILE_TYPES = [
+  { label: 'Alle Typen', value: '' },
+  { label: '🖼️ Bilder',  value: 'image' },
+  { label: '📄 PDFs',    value: 'pdf' },
+  { label: '🎬 Videos',  value: 'video' },
+  { label: '🎵 Audio',   value: 'audio' },
+  { label: '📝 Office',  value: 'office' },
+  { label: '🗜️ Archive', value: 'archive' },
+];
+
+function matchesMime(mime, filter) {
+  if (!filter) return true;
+  if (filter === 'image')   return mime?.startsWith('image/');
+  if (filter === 'pdf')     return mime?.includes('pdf');
+  if (filter === 'video')   return mime?.startsWith('video/');
+  if (filter === 'audio')   return mime?.startsWith('audio/');
+  if (filter === 'office')  return mime?.includes('word') || mime?.includes('excel') || mime?.includes('powerpoint') || mime?.includes('spreadsheet') || mime?.includes('presentation') || mime?.includes('openxmlformats');
+  if (filter === 'archive') return mime?.includes('zip') || mime?.includes('rar') || mime?.includes('7z') || mime?.includes('tar') || mime?.includes('gzip');
+  return true;
+}
+
 function DocumentsTab({ groupId }) {
   const qc = useQueryClient();
   const fileRef = useRef();
-  const [search, setSearch]         = useState('');
-  const [catFilter, setCatFilter]   = useState('');
-  const [showUpload, setShowUpload] = useState(false);
-  const [showEdit, setShowEdit]     = useState(false);
-  const [editDoc, setEditDoc]       = useState(null);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadForm, setUploadForm] = useState({ title: '', category: 'other', description: '' });
-  const [editForm, setEditForm]     = useState({ title: '', category: '', description: '' });
-  const [showCatInput, setShowCatInput] = useState(false);
-  const [newCatName, setNewCatName] = useState('');
+  const [search, setSearch]               = useState('');
+  const [catFilter, setCatFilter]         = useState('');
+  const [subFilter, setSubFilter]         = useState('');
+  const [typeFilter, setTypeFilter]       = useState('');
+  const [showTypeDD, setShowTypeDD]       = useState(false);
+  const [showUpload, setShowUpload]       = useState(false);
+  const [showEdit, setShowEdit]           = useState(false);
+  const [editDoc, setEditDoc]             = useState(null);
+  const [selectedFile, setSelectedFile]   = useState(null);
+  const [uploadForm, setUploadForm]       = useState({ title: '', category: 'other', subcategory: '', description: '' });
+  const [editForm, setEditForm]           = useState({ title: '', category: '', description: '' });
+  const [showCatInput, setShowCatInput]   = useState(false);
+  const [newCatName, setNewCatName]       = useState('');
+  const [showSubInput, setShowSubInput]   = useState(false);
+  const [newSubName, setNewSubName]       = useState('');
+  const [uploadError, setUploadError]     = useState('');
+
+  // Unterkategorie-Filter zurücksetzen wenn Kategorie wechselt
+  useEffect(() => { setSubFilter(''); setShowSubInput(false); }, [catFilter]);
 
   const { data: docs = [], isLoading } = useQuery({
-    queryKey: ['group-docs', groupId, catFilter],
-    queryFn:  () => api.get(`/documents?group_id=${groupId}${catFilter ? `&category=${catFilter}` : ''}`)
+    queryKey: ['group-docs', groupId, catFilter, subFilter],
+    queryFn: () => {
+      let url = `/documents?group_id=${groupId}`;
+      if (catFilter) url += `&category=${encodeURIComponent(catFilter)}`;
+      if (subFilter) url += `&subcategory=${encodeURIComponent(subFilter)}`;
+      return api.get(url);
+    }
   });
 
   const { data: customCats = [] } = useQuery({
     queryKey: ['doc-categories', groupId],
     queryFn: () => api.get(`/documents/categories?group_id=${groupId}`)
   });
+
+  // Alle Unterkategorien dieser Gruppe — client-seitig nach parent_category gefiltert
+  const { data: allSubs = [] } = useQuery({
+    queryKey: ['doc-subcategories', groupId],
+    queryFn: () => api.get(`/documents/subcategories?group_id=${groupId}`)
+  });
+
+  // Unterkats für aktive Kategorie (Filter-Leiste)
+  const catSubs = allSubs.filter(s => s.parent_category === catFilter);
+  // Unterkats für Upload-Modal (nach gewählter upload-Kategorie)
+  const uploadCatSubs = allSubs.filter(s => s.parent_category === uploadForm.category);
 
   const addCatMutation = useMutation({
     mutationFn: name => api.post('/documents/categories', { name, group_id: groupId }),
@@ -238,27 +285,44 @@ function DocumentsTab({ groupId }) {
     onSuccess: () => qc.invalidateQueries(['doc-categories', groupId])
   });
 
+  const addSubMutation = useMutation({
+    mutationFn: name => api.post('/documents/subcategories', { name, group_id: groupId, parent_category: catFilter }),
+    onSuccess: () => { qc.invalidateQueries(['doc-subcategories', groupId]); setNewSubName(''); setShowSubInput(false); }
+  });
+  const delSubMutation = useMutation({
+    mutationFn: id => api.delete(`/documents/subcategories/${id}`),
+    onSuccess: () => qc.invalidateQueries(['doc-subcategories', groupId])
+  });
+
+  // WICHTIG: kein Content-Type Header — Axios setzt die boundary automatisch für FormData
   const uploadMutation = useMutation({
     mutationFn: () => {
       const fd = new FormData();
       fd.append('file', selectedFile);
       fd.append('title', uploadForm.title || selectedFile.name);
       fd.append('category', uploadForm.category);
+      fd.append('subcategory', uploadForm.subcategory || '');
       fd.append('description', uploadForm.description);
       fd.append('group_id', groupId);
       return api.post('/documents/upload', fd);
     },
-    onSuccess: () => { qc.invalidateQueries(['group-docs', groupId]); setShowUpload(false); setSelectedFile(null); setUploadForm({ title: '', category: 'other', description: '' }); }
+    onSuccess: () => {
+      qc.invalidateQueries(['group-docs', groupId]);
+      setShowUpload(false); setSelectedFile(null);
+      setUploadForm({ title: '', category: 'other', subcategory: '', description: '' });
+      setUploadError('');
+    },
+    onError: err => setUploadError(err?.error || err?.message || 'Upload fehlgeschlagen'),
   });
 
   const editMutation = useMutation({
     mutationFn: ({ id, data }) => api.put(`/documents/${id}`, data),
-    onSuccess:  () => { qc.invalidateQueries(['group-docs', groupId]); setShowEdit(false); }
+    onSuccess: () => { qc.invalidateQueries(['group-docs', groupId]); setShowEdit(false); }
   });
 
   const deleteMutation = useMutation({
     mutationFn: id => api.delete(`/documents/${id}`),
-    onSuccess:  () => qc.invalidateQueries(['group-docs', groupId])
+    onSuccess: () => qc.invalidateQueries(['group-docs', groupId])
   });
 
   const handleFileSelect = e => {
@@ -266,75 +330,156 @@ function DocumentsTab({ groupId }) {
     if (f) { setSelectedFile(f); setUploadForm(p => ({ ...p, title: f.name.replace(/\.[^.]+$/, '') })); }
   };
 
-  const filtered = docs.filter(d =>
-    !search || d.title.toLowerCase().includes(search.toLowerCase()) || d.filename?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = docs.filter(d => {
+    if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.filename?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (!matchesMime(d.mimetype, typeFilter)) return false;
+    return true;
+  });
+
+  const activeTypeName = DOC_FILE_TYPES.find(t => t.value === typeFilter)?.label || 'Alle Typen';
+
+  // Pill-Style helper
+  const pill = (active) => ({
+    padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
+    background: active ? '#f97316' : '#1e1e1e',
+    color: active ? '#fff' : '#94a3b8',
+    outline: active ? '1px solid #f97316' : '1px solid #2a2a2a',
+  });
+
+  const subPill = (active) => ({
+    padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
+    border: 'none', cursor: 'pointer',
+    background: active ? 'rgba(249,115,22,0.18)' : '#161616',
+    color: active ? '#f97316' : '#64748b',
+    outline: active ? '1px solid rgba(249,115,22,0.45)' : '1px solid #222',
+  });
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+
+      {/* ── Kopfzeile: Anzahl + Typ-Dropdown + Hochladen ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-slate-500">{docs.length} Dokument{docs.length !== 1 ? 'e' : ''} in dieser Gruppe</p>
-        <button onClick={() => setShowUpload(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
-          <Upload size={15} /> Hochladen
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+          {/* Dateityp-Dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowTypeDD(v => !v)} style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 12px', borderRadius: '10px',
+              background: typeFilter ? 'rgba(249,115,22,0.12)' : '#1e1e1e',
+              border: typeFilter ? '1px solid rgba(249,115,22,0.4)' : '1px solid #2a2a2a',
+              color: typeFilter ? '#f97316' : '#94a3b8',
+              fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap',
+            }}>
+              {activeTypeName} <span style={{ fontSize: '9px', opacity: 0.7, marginLeft: '2px' }}>▾</span>
+            </button>
+            {showTypeDD && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
+                background: '#1a1a1a', border: '1px solid #2a2a2a',
+                borderRadius: '12px', padding: '4px', minWidth: '145px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
+              }}>
+                {DOC_FILE_TYPES.map(t => (
+                  <button key={t.value} onClick={() => { setTypeFilter(t.value); setShowTypeDD(false); }} style={{
+                    display: 'block', width: '100%', textAlign: 'left',
+                    padding: '7px 12px', borderRadius: '8px', border: 'none',
+                    background: typeFilter === t.value ? 'rgba(249,115,22,0.15)' : 'transparent',
+                    color: typeFilter === t.value ? '#f97316' : '#cbd5e1',
+                    fontSize: '13px', cursor: 'pointer',
+                  }}>{t.label}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => setShowUpload(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
+            <Upload size={15} /> Hochladen
+          </button>
+        </div>
       </div>
 
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl" placeholder="Suchen..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <div className="flex gap-1 flex-wrap">
-          {CATS.map((c, i) => (
-            <button key={c} onClick={() => setCatFilter(i === 0 ? '' : CAT_VALS[i - 1])}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${(i === 0 ? catFilter === '' : catFilter === CAT_VALS[i-1]) ? 'bg-orange-500 text-white' : 'bg-[#1e1e1e] border border-[#2a2a2a] text-slate-400 hover:text-white'}`}>
-              {c}
+      {/* ── Suche ── */}
+      <div className="relative">
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <input className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl" placeholder="Suchen..." value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      {/* ── Kategorie-Pills ── */}
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+        {CATS.map((c, i) => (
+          <button key={c} onClick={() => setCatFilter(i === 0 ? '' : CAT_VALS[i - 1])}
+            style={pill(i === 0 ? catFilter === '' : catFilter === CAT_VALS[i - 1])}>
+            {c}
+          </button>
+        ))}
+        {customCats.map(cat => (
+          <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <button onClick={() => setCatFilter(cat.name)} style={pill(catFilter === cat.name)}>
+              {cat.icon} {cat.name}
             </button>
-          ))}
-          {customCats.map(cat => (
-            <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-              <button
-                onClick={() => setCatFilter(cat.name)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${catFilter === cat.name ? 'bg-orange-500 text-white' : 'bg-[#1e1e1e] border border-[#2a2a2a] text-slate-400 hover:text-white'}`}
-              >
-                {cat.icon} {cat.name}
-              </button>
-              <button
-                onClick={() => delCatMutation.mutate(cat.id)}
-                className="p-1 text-slate-600 hover:text-red-400 transition-colors rounded"
-                title="Kategorie löschen"
-              >
-                <X size={11} />
+            <button onClick={() => delCatMutation.mutate(cat.id)} style={{ color: '#475569', cursor: 'pointer', background: 'none', border: 'none', padding: '2px' }}>
+              <X size={11} />
+            </button>
+          </div>
+        ))}
+        {showCatInput ? (
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <input autoFocus placeholder="Kategoriename..." value={newCatName} onChange={e => setNewCatName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMutation.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
+              style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '130px' }} />
+            <button onClick={() => { if (newCatName.trim()) addCatMutation.mutate(newCatName.trim()); }}
+              style={{ padding: '4px 10px', borderRadius: '8px', background: '#f97316', color: '#fff', border: 'none', fontSize: '12px', cursor: 'pointer' }}>+</button>
+            <button onClick={() => setShowCatInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+          </div>
+        ) : (
+          <button onClick={() => setShowCatInput(true)} style={{
+            padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+            background: '#1e1e1e', border: '1px dashed #2a2a2a', color: '#64748b', cursor: 'pointer',
+          }}>+ Kategorie</button>
+        )}
+      </div>
+
+      {/* ── Unterkategorie-Pills (erscheint wenn eine Kategorie gewählt ist) ── */}
+      {catFilter && (
+        <div style={{
+          display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center',
+          paddingLeft: '14px', borderLeft: '2px solid #2a2a2a',
+        }}>
+          <span style={{ fontSize: '11px', color: '#475569', marginRight: '2px', whiteSpace: 'nowrap' }}>Unterordner:</span>
+          <button onClick={() => setSubFilter('')} style={subPill(subFilter === '')}>Alle</button>
+          {catSubs.map(sub => (
+            <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
+              <button onClick={() => setSubFilter(sub.name)} style={subPill(subFilter === sub.name)}>{sub.name}</button>
+              <button onClick={() => delSubMutation.mutate(sub.id)} style={{ color: '#374151', cursor: 'pointer', background: 'none', border: 'none', padding: '2px', lineHeight: 1 }}>
+                <X size={10} />
               </button>
             </div>
           ))}
-          {showCatInput ? (
+          {showSubInput ? (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <input
-                autoFocus
-                placeholder="Kategoriename..."
-                value={newCatName}
-                onChange={e => setNewCatName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMutation.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
-                style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '120px' }}
-              />
-              <button onClick={() => { if (newCatName.trim()) addCatMutation.mutate(newCatName.trim()); }} className="px-2 py-1 bg-orange-500 text-white rounded-lg text-xs">+</button>
-              <button onClick={() => setShowCatInput(false)} className="px-2 py-1 text-slate-400 text-xs">✕</button>
+              <input autoFocus placeholder="Unterordner..." value={newSubName} onChange={e => setNewSubName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && newSubName.trim()) addSubMutation.mutate(newSubName.trim()); if (e.key === 'Escape') setShowSubInput(false); }}
+                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', background: '#161616', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '115px' }} />
+              <button onClick={() => { if (newSubName.trim()) addSubMutation.mutate(newSubName.trim()); }}
+                style={{ padding: '3px 8px', borderRadius: '6px', background: '#f97316', color: '#fff', border: 'none', fontSize: '11px', cursor: 'pointer' }}>+</button>
+              <button onClick={() => setShowSubInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px' }}>✕</button>
             </div>
           ) : (
-            <button
-              onClick={() => setShowCatInput(true)}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[#1e1e1e] border border-dashed border-[#2a2a2a] text-slate-400 hover:text-orange-400 whitespace-nowrap"
-            >
-              + Kategorie
-            </button>
+            <button onClick={() => setShowSubInput(true)} style={{
+              padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
+              background: '#161616', border: '1px dashed #2a2a2a', color: '#475569', cursor: 'pointer',
+            }}>+ Unterordner</button>
           )}
         </div>
-      </div>
+      )}
 
+      {/* ── Dokumenten-Liste ── */}
       {filtered.length === 0 ? (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-12 text-center">
           <FileText size={40} className="text-slate-600 mx-auto mb-3" />
@@ -351,7 +496,7 @@ function DocumentsTab({ groupId }) {
                   <p className="text-sm font-medium text-white truncate">{doc.title}</p>
                   <p className="text-xs text-slate-500">{doc.uploader_name && `${doc.uploader_name} · `}{formatSize(doc.size)} · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</p>
                 </div>
-                {doc.category && <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0">{doc.category}</span>}
+                {doc.category && <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0">{doc.category}{doc.subcategory ? ` / ${doc.subcategory}` : ''}</span>}
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
                   <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category, description: doc.description || '' }); setShowEdit(true); }}
@@ -364,7 +509,8 @@ function DocumentsTab({ groupId }) {
         </div>
       )}
 
-      <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Dokument hochladen">
+      {/* ── Upload Modal ── */}
+      <Modal open={showUpload} onClose={() => { setShowUpload(false); setUploadError(''); }} title="Dokument hochladen">
         <div className="space-y-4">
           <div onClick={() => fileRef.current?.click()}
             className="border-2 border-dashed border-[#2a2a2a] hover:border-orange-500/50 rounded-xl p-6 text-center cursor-pointer transition-colors">
@@ -377,16 +523,21 @@ function DocumentsTab({ groupId }) {
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
             <input className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
-            <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category} onChange={e => setUploadForm(f => ({ ...f, category: e.target.value }))}>
+            <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category} onChange={e => setUploadForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
               {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i + 1]}</option>)}
-              {customCats.map(cat => (
-                <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>
-              ))}
+              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>)}
             </select></div>
+          <div><label className="block text-sm text-slate-400 mb-1.5">Unterordner <span style={{ color: '#475569', fontSize: '11px' }}>(optional)</span></label>
+            <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.subcategory} onChange={e => setUploadForm(f => ({ ...f, subcategory: e.target.value }))}>
+              <option value="">— Keiner —</option>
+              {uploadCatSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
+            </select>
+          </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
+          {uploadError && <p style={{ fontSize: '13px', color: '#f87171', background: 'rgba(248,113,113,0.1)', borderRadius: '8px', padding: '8px 12px' }}>{uploadError}</p>}
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setShowUpload(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
+            <button onClick={() => { setShowUpload(false); setUploadError(''); }} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
             <button onClick={() => uploadMutation.mutate()} disabled={!selectedFile || uploadMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50">
               {uploadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Hochladen
@@ -395,6 +546,7 @@ function DocumentsTab({ groupId }) {
         </div>
       </Modal>
 
+      {/* ── Bearbeiten Modal ── */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Dokument bearbeiten" size="sm">
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
@@ -402,9 +554,7 @@ function DocumentsTab({ groupId }) {
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
               {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i + 1]}</option>)}
-              {customCats.map(cat => (
-                <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>
-              ))}
+              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>)}
             </select></div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
@@ -736,27 +886,34 @@ function ChatTab({ groupId }) {
         )}
         {messages.map(m => {
           const isOwn = m.user_id === user?.id;
+          const avatarSrc = isOwn ? user?.avatar : m.avatar;
+          const displayName = isOwn ? (user?.username || 'Du') : (m.username || '?');
           return (
             <div key={m.id} style={{ display: 'flex', flexDirection: isOwn ? 'row-reverse' : 'row', gap: '8px', alignItems: 'flex-end' }}>
-              {!isOwn && (
-                <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
-                  {m.avatar
-                    ? <img src={m.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <div style={{
-                        width: 30, height: 30,
-                        background: 'rgba(249,115,22,0.2)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: '12px', fontWeight: 700, color: '#f97316',
-                      }}>
-                        {(m.username || '?')[0].toUpperCase()}
-                      </div>
-                  }
-                </div>
-              )}
+              {/* Avatar – links für andere, rechts für eigene */}
+              <div style={{ width: 30, height: 30, borderRadius: '50%', flexShrink: 0, overflow: 'hidden' }}>
+                {avatarSrc
+                  ? <img src={avatarSrc} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{
+                      width: 30, height: 30,
+                      background: isOwn ? 'rgba(249,115,22,0.3)' : 'rgba(100,116,139,0.25)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '12px', fontWeight: 700,
+                      color: isOwn ? '#f97316' : '#94a3b8',
+                    }}>
+                      {displayName[0].toUpperCase()}
+                    </div>
+                }
+              </div>
               <div style={{ maxWidth: '72%' }}>
-                {!isOwn && (
-                  <p style={{ fontSize: '11px', color: '#64748b', marginBottom: '2px', marginLeft: '4px' }}>{m.username}</p>
-                )}
+                {/* Name über der Bubble – rechts für eigene, links für andere */}
+                <p style={{
+                  fontSize: '11px', color: '#64748b', marginBottom: '2px',
+                  textAlign: isOwn ? 'right' : 'left',
+                  paddingInline: '4px',
+                }}>
+                  {displayName}
+                </p>
                 <div style={{
                   padding: '9px 13px',
                   borderRadius: isOwn ? '16px 4px 16px 16px' : '4px 16px 16px 16px',
@@ -805,6 +962,13 @@ function ChatTab({ groupId }) {
       </div>
     </div>
   );
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// TAB: NOTIZBUCH (Gruppen-Workspace)
+// ════════════════════════════════════════════════════════════════════════════
+function NotizenTab({ groupId }) {
+  return <NotizenPage groupId={groupId} />;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -965,6 +1129,7 @@ const TABS = [
   { id: 'documents', label: 'Dokumente',  icon: FileText },
   { id: 'calendar',  label: 'Kalender',   icon: CalIcon },
   { id: 'chat',      label: 'Chat',       icon: Hash },
+  { id: 'notizen',   label: 'Notizbuch',  icon: BookOpen },
   { id: 'finance',   label: 'Finanzen',   icon: Euro },
   { id: 'members',   label: 'Mitglieder', icon: Users },
 ];
@@ -1066,6 +1231,7 @@ export default function GroupView() {
       {activeTab === 'documents' && <DocumentsTab groupId={groupId} />}
       {activeTab === 'calendar'  && <CalendarTab  groupId={groupId} />}
       {activeTab === 'chat'      && <ChatTab      groupId={groupId} />}
+      {activeTab === 'notizen'   && <NotizenTab   groupId={groupId} />}
       {activeTab === 'finance'   && <FinanceTab   groupId={groupId} isAdmin={isAdmin} user={user} />}
       {activeTab === 'members'   && (
         <MembersTab group={group} members={members} isAdmin={isAdmin} user={user}

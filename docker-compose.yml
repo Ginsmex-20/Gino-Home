@@ -18,6 +18,9 @@ services:
       - SMTP_USER=${SMTP_USER:-}
       - SMTP_PASS=${SMTP_PASS:-}
       - SMTP_FROM=${SMTP_FROM:-}
+      - NEXTCLOUD_URL=${NEXTCLOUD_URL:-}
+      - NEXTCLOUD_USER=${NEXTCLOUD_USER:-}
+      - NEXTCLOUD_PASS=${NEXTCLOUD_PASS:-}
     volumes:
       - ./data:/app/data
     networks:

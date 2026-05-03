@@ -213,5 +213,44 @@ try { db.exec(`ALTER TABLE tasks ADD COLUMN done_at DATETIME`); } catch {}
 try { db.exec(`UPDATE tasks SET status = 'archiv' WHERE status = 'blocked'`); } catch {}
 // Link grocery receipts to finance items
 try { db.exec(`ALTER TABLE finance_items ADD COLUMN grocery_receipt_id INTEGER`); } catch {}
+// Dokumente: Unterkategorie + Nextcloud-Pfad
+try { db.exec(`ALTER TABLE documents ADD COLUMN subcategory TEXT`); } catch {}
+try { db.exec(`ALTER TABLE documents ADD COLUMN nc_path TEXT`); } catch {}
+// Dokument-Unterkategorien (pro Oberkategorie, wie Handyvertrag O2 unter Vertrag)
+try { db.exec(`CREATE TABLE IF NOT EXISTS document_subcategories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  parent_category TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  group_id  INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(name, parent_category, created_by, group_id)
+)`); } catch {}
+try { db.exec(`ALTER TABLE document_subcategories ADD COLUMN parent_category TEXT NOT NULL DEFAULT 'other'`); } catch {}
+
+// ── Notizbuch / Workspace ────────────────────────────────────────────────────
+try { db.exec(`CREATE TABLE IF NOT EXISTS workspace_sections (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  icon TEXT DEFAULT '📂',
+  color TEXT DEFAULT '#f97316',
+  parent_id INTEGER REFERENCES workspace_sections(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+  group_id INTEGER REFERENCES groups(id) ON DELETE CASCADE,
+  sort_order INTEGER DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
+try { db.exec(`CREATE TABLE IF NOT EXISTS workspace_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  section_id INTEGER NOT NULL REFERENCES workspace_sections(id) ON DELETE CASCADE,
+  type TEXT NOT NULL DEFAULT 'note',
+  title TEXT NOT NULL,
+  content TEXT,
+  url TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
 
 module.exports = db;
