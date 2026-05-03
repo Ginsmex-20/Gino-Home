@@ -257,7 +257,7 @@ export default function Groceries() {
                     )}
                     {r.notes && (
                       <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
-                        📝 {r.notes}
+                        {r.notes}
                       </p>
                     )}
                   </div>

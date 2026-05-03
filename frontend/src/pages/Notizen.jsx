@@ -6,7 +6,6 @@ import {
 } from 'lucide-react';
 import api from '../api/client';
 
-const ICONS = ['📂','📁','📝','🔗','💡','⭐','🔒','💼','🏠','📊','🎯','🔧','📌','🗂️'];
 const COLORS = ['#f97316','#2563eb','#16a34a','#dc2626','#d97706','#db2777','#0891b2','#7c3aed'];
 
 // ── Kleines Eingabefeld inline ────────────────────────────────────────────────
@@ -61,7 +60,7 @@ function SectionTree({ sections, activeId, onSelect, onAdd, onDelete, onRename, 
                     {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                   </button>
                 : <span style={{ width: 12 }} />}
-              <span style={{ fontSize: '14px' }}>{s.icon}</span>
+              <Folder size={13} style={{ color: '#475569', flexShrink: 0 }} />
               {renamingId === s.id ? (
                 <InlineInput
                   defaultValue={s.title}
@@ -130,7 +129,7 @@ function ItemCard({ item, onDelete, onEdit }) {
     <div style={{ background: '#1a1a1a', border: '1px solid #222', borderRadius: '14px', padding: '14px 16px', position: 'relative' }}
       className="workspace-item">
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-        <span style={{ fontSize: '16px', marginTop: '1px', flexShrink: 0 }}>{item.type === 'link' ? '🔗' : '📝'}</span>
+        {item.type === 'link' ? <Link size={14} style={{ color: '#60a5fa', marginTop: '2px', flexShrink: 0 }} /> : <FileText size={14} style={{ color: '#94a3b8', marginTop: '2px', flexShrink: 0 }} />}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
             <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0 }}>{item.title}</p>
@@ -274,7 +273,7 @@ export default function Notizen({ groupId = null }) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '20px' }}>{activeData?.icon || '📂'}</span>
+                <FolderOpen size={20} style={{ color: '#f97316' }} />
                 <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', margin: 0 }}>{activeData?.title}</h2>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -296,7 +295,10 @@ export default function Notizen({ groupId = null }) {
             {/* Neue-Item-Formular */}
             {addingItem && (
               <div style={{ background: '#1a1a1a', border: '1px solid #f97316', borderRadius: '14px', padding: '16px' }}>
-                <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '10px' }}>{addingItem === 'note' ? '📝 Neue Notiz' : '🔗 Neuer Link'}</p>
+                <p style={{ fontSize: '13px', color: '#94a3b8', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  {addingItem === 'note' ? <FileText size={13} /> : <Link size={13} />}
+                  {addingItem === 'note' ? 'Neue Notiz' : 'Neuer Link'}
+                </p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   <input value={newItemForm.title} onChange={e => setNewItemForm(f => ({ ...f, title: e.target.value }))} placeholder="Titel..."
                     style={{ padding: '8px 12px', borderRadius: '8px', background: '#0f0f0f', border: '1px solid #2a2a2a', color: '#fff', fontSize: '14px', fontWeight: 600, outline: 'none' }} />

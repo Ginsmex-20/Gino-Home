@@ -22,12 +22,12 @@ const CATS = [
 
 const FILE_TYPES = [
   { label: 'Alle Typen', value: '' },
-  { label: '🖼️ Bilder',  value: 'image' },
-  { label: '📄 PDFs',    value: 'pdf' },
-  { label: '🎬 Videos',  value: 'video' },
-  { label: '🎵 Audio',   value: 'audio' },
-  { label: '📝 Office',  value: 'office' },
-  { label: '🗜️ Archive', value: 'archive' },
+  { label: 'Bilder',     value: 'image' },
+  { label: 'PDFs',       value: 'pdf' },
+  { label: 'Videos',     value: 'video' },
+  { label: 'Audio',      value: 'audio' },
+  { label: 'Office',     value: 'office' },
+  { label: 'Archive',    value: 'archive' },
 ];
 
 function matchesMime(mime, f) {

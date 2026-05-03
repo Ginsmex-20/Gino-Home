@@ -185,7 +185,7 @@ function TasksTab({ groupId }) {
             {t.description && <p className="text-xs text-slate-500 mt-0.5 truncate">{t.description}</p>}
             <div className="flex items-center gap-2 mt-1.5">
               <span className={`text-xs ${priorities[t.priority]?.cls || 'text-slate-400'}`}>{priorities[t.priority]?.label}</span>
-              {t.due_date && <span className="text-xs text-slate-500">📅 {format(new Date(t.due_date), 'd. MMM', { locale: de })}</span>}
+              {t.due_date && <span className="text-xs text-slate-500">{format(new Date(t.due_date), 'd. MMM', { locale: de })}</span>}
               {t.creator_name && <span className="text-xs text-slate-600">von {t.creator_name}</span>}
             </div>
           </div>
@@ -791,9 +791,9 @@ export default function Groups() {
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Typ</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}>
-              <option value="household">🏠 Haushalt</option>
-              <option value="work">💼 Arbeit</option>
-              <option value="general">⭐ Allgemein</option>
+              <option value="household">Haushalt</option>
+              <option value="work">Arbeit</option>
+              <option value="general">Allgemein</option>
             </select></div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-slate-400">Abbrechen</button>
