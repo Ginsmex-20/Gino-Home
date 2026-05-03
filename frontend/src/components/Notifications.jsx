@@ -7,6 +7,27 @@ import { connectSocket, disconnectSocket, getSocket } from '../api/socket';
 import useNotifications from '../stores/notifications';
 import useAuth from '../stores/auth';
 
+// ── Kurzer Benachrichtigungs-Sound (Web Audio API) ───────────────────────────
+function playNotifSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(660, ctx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0,    ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.25, ctx.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.55);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.6);
+    // Kontext schließen sobald der Ton fertig ist
+    osc.onended = () => ctx.close();
+  } catch (_) {}
+}
+
 // ── Socket-Manager: verbindet Socket.io und verarbeitet Events ───────────────
 export function SocketManager() {
   const { token, user } = useAuth();
@@ -36,6 +57,7 @@ export function SocketManager() {
       // Nicht benachrichtigen wenn wir selbst der Sender sind
       if (notif.senderId && notif.senderId === userRef.current?.id) return;
       addNotification(notif);
+      playNotifSound();
     });
 
     // Initiale Benachrichtigungen beim Verbindungsaufbau (Kalender, Verträge)
