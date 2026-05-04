@@ -82,6 +82,10 @@ function createWindow() {
     );
   }
 
+  // ── User-Agent: "Electron" entfernen damit Google OAuth nicht blockt ────────
+  const originalUA = mainWindow.webContents.getUserAgent();
+  mainWindow.webContents.setUserAgent(originalUA.replace(/Electron\/[\d.]+ ?/, ''));
+
   // ── Ginohome.de laden ────────────────────────────────────────────────────
   mainWindow.loadURL(APP_URL);
 
@@ -93,18 +97,28 @@ function createWindow() {
     }
   });
 
-  // Externe Links im System-Browser öffnen
+  // Popup-Handler: Google OAuth in Electron öffnen, alle anderen extern
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith('https://ginohome.de') || url.startsWith('http://ginohome.de')) {
+    if (
+      url.startsWith('https://ginohome.de') ||
+      url.startsWith('http://ginohome.de') ||
+      url.startsWith('https://accounts.google.com') ||
+      url.startsWith('https://oauth2.googleapis.com')
+    ) {
       return { action: 'allow' };
     }
     shell.openExternal(url);
     return { action: 'deny' };
   });
 
-  // Navigations-Schutz: nur ginohome.de erlaubt
+  // Navigations-Schutz: Google OAuth + ginohome.de erlaubt, Rest extern
   mainWindow.webContents.on('will-navigate', (event, url) => {
-    if (!url.startsWith('https://ginohome.de') && !url.startsWith('http://ginohome.de')) {
+    const allowed =
+      url.startsWith('https://ginohome.de') ||
+      url.startsWith('http://ginohome.de') ||
+      url.startsWith('https://accounts.google.com') ||
+      url.startsWith('https://oauth2.googleapis.com');
+    if (!allowed) {
       event.preventDefault();
       shell.openExternal(url);
     }
