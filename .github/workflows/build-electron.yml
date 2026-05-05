@@ -40,7 +40,7 @@ jobs:
 
   # ── Mac .dmg ────────────────────────────────────────────────────────────────
   build-mac:
-    runs-on: macos-latest
+    runs-on: macos-13
     steps:
       - uses: actions/checkout@v4
 
@@ -52,8 +52,8 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Mac DMG
-        run: npm run build:mac
+      - name: Build Mac DMG (nur x64)
+        run: npx electron-builder --mac --x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -65,9 +65,10 @@ jobs:
           path: dist-app/Gino-Home-*.dmg
           retention-days: 90
 
-  # ── GitHub Release erstellen ─────────────────────────────────────────────────
+  # ── GitHub Release erstellen (auch wenn Mac fehlt) ──────────────────────────
   release:
     needs: [build-windows, build-mac]
+    if: always() && needs.build-windows.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -78,7 +79,8 @@ jobs:
           name: Gino-Home-Windows
           path: ./release-files
 
-      - name: Download Mac artifacts
+      - name: Download Mac artifacts (falls vorhanden)
+        if: needs.build-mac.result == 'success'
         uses: actions/download-artifact@v4
         with:
           name: Gino-Home-Mac
@@ -95,7 +97,7 @@ jobs:
             ### Download
             - **Windows Installer** – `Gino-Home-*-x64.exe` → herunterladen & installieren
             - **Windows Portable** – `Gino-Home-Portable-*.exe` → direkt starten, kein Installieren nötig
-            - **Mac** – `Gino-Home-*.dmg` → öffnen & in Programme ziehen
+            - **Mac** – `Gino-Home-*.dmg` → öffnen & in Programme ziehen (falls verfügbar)
           files: ./release-files/*
           draft: false
         env:
