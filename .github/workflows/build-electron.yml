@@ -1,10 +1,15 @@
-name: Build Electron App
+name: Build & Release Electron App
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (z.B. 1.0.1)'
+        required: true
+        default: '1.0.0'
 
 jobs:
-  # ── Windows .exe ────────────────────────────────────────────────────────────
+  # ── Windows .exe + Portable ─────────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
     steps:
@@ -18,17 +23,19 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build Windows installer
+      - name: Build Windows
         run: npm run build:win
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Upload Windows installer
+      - name: Upload Windows artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: Gino-Home-Setup-Windows
-          path: dist-app/Gino-Home-Setup-*.exe
+          name: Gino-Home-Windows
+          path: |
+            dist-app/Gino-Home-*-x64.exe
+            dist-app/Gino-Home-Portable-*.exe
           retention-days: 90
 
   # ── Mac .dmg ────────────────────────────────────────────────────────────────
@@ -51,9 +58,45 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
-      - name: Upload Mac DMG
+      - name: Upload Mac artifact
         uses: actions/upload-artifact@v4
         with:
           name: Gino-Home-Mac
           path: dist-app/Gino-Home-*.dmg
           retention-days: 90
+
+  # ── GitHub Release erstellen ─────────────────────────────────────────────────
+  release:
+    needs: [build-windows, build-mac]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Gino-Home-Windows
+          path: ./release-files
+
+      - name: Download Mac artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: Gino-Home-Mac
+          path: ./release-files
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: Gino-Home v${{ github.event.inputs.version }}
+          body: |
+            ## Gino-Home v${{ github.event.inputs.version }}
+
+            ### Download
+            - **Windows Installer** – `Gino-Home-*-x64.exe` → herunterladen & installieren
+            - **Windows Portable** – `Gino-Home-Portable-*.exe` → direkt starten, kein Installieren nötig
+            - **Mac** – `Gino-Home-*.dmg` → öffnen & in Programme ziehen
+          files: ./release-files/*
+          draft: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

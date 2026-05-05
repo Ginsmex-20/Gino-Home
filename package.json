@@ -36,13 +36,18 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64"
-          ]
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
         }
       ],
       "icon": "electron/icon.ico",
-      "artifactName": "Gino-Home-Setup-${version}.${ext}"
+      "artifactName": "Gino-Home-${version}-${arch}.${ext}"
+    },
+    "portable": {
+      "artifactName": "Gino-Home-Portable-${version}.exe"
     },
     "nsis": {
       "oneClick": false,
