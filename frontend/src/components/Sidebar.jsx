@@ -350,43 +350,51 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
           {!collapsed && <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748b' }}>Benachrichtigungen</span>}
         </button>
         {/* Updates */}
-        <button
-          onClick={() => { navigate('/profile'); onClose?.(); }}
+        <NavLink
+          to="/updates"
+          onClick={() => onClose?.()}
           title={collapsed ? 'Updates' : undefined}
-          style={{
-            display: 'flex', alignItems: 'center', width: '100%',
+          style={({ isActive }) => ({
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: collapsed ? 0 : '12px',
             padding: collapsed ? '0' : '10px 12px',
             height: collapsed ? '44px' : undefined,
-            gap: collapsed ? 0 : '12px',
-            borderRadius: '12px', background: 'transparent', border: 'none',
-            cursor: 'pointer', transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            borderRadius: '12px',
+            fontSize: '14px', fontWeight: 500,
+            textDecoration: 'none',
+            transition: 'background 0.15s',
+            background: isActive ? (collapsed ? 'rgba(249,115,22,0.2)' : '#f97316') : 'transparent',
+            color: isActive ? (collapsed ? '#f97316' : '#fff') : (hasUpdate ? '#22c55e' : '#64748b'),
+          })}
         >
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Zap size={18} color={hasUpdate ? '#22c55e' : '#64748b'} />
-            {hasUpdate && (
-              <span className="update-dot" style={{
-                position: 'absolute', top: -3, right: -3,
-                width: 7, height: 7, borderRadius: '50%',
-                background: '#22c55e',
-              }} />
-            )}
-          </div>
-          {!collapsed && (
-            <span style={{ fontSize: '14px', fontWeight: 500, color: hasUpdate ? '#22c55e' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Updates
-              {hasUpdate && (
-                <span className="update-dot" style={{
-                  width: 7, height: 7, borderRadius: '50%',
-                  background: '#22c55e', flexShrink: 0, display: 'inline-block',
-                }} />
+          {({ isActive }) => (
+            <>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Zap size={18} color={isActive ? (collapsed ? '#f97316' : '#fff') : (hasUpdate ? '#22c55e' : '#64748b')} />
+                {hasUpdate && !isActive && (
+                  <span className="update-dot" style={{
+                    position: 'absolute', top: -3, right: -3,
+                    width: 7, height: 7, borderRadius: '50%',
+                    background: '#22c55e',
+                  }} />
+                )}
+              </div>
+              {!collapsed && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  Updates
+                  {hasUpdate && !isActive && (
+                    <span className="update-dot" style={{
+                      width: 7, height: 7, borderRadius: '50%',
+                      background: '#22c55e', flexShrink: 0, display: 'inline-block',
+                    }} />
+                  )}
+                </span>
               )}
-            </span>
+            </>
           )}
-        </button>
+        </NavLink>
 
         <NavLink
           to="/profile"

@@ -21,6 +21,7 @@ function usePageTitle() {
   if (pathname.startsWith('/groups/'))   return 'Gruppe';
   if (pathname.startsWith('/groups'))    return 'Gruppen';
   if (pathname.startsWith('/profile'))   return 'Profil';
+  if (pathname.startsWith('/updates'))   return 'Updates';
   if (pathname.startsWith('/vertraege')) return 'Verträge';
   return 'Gino-Home';
 }
