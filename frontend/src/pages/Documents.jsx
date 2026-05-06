@@ -2,7 +2,8 @@ import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, FileText, File, Image, Trash2, Edit, Download,
-  Search, Loader2, FilePlus, X, Film, Music, Archive, FileCode, ChevronRight
+  Search, Loader2, FilePlus, X, Film, Music, Archive, FileCode, ChevronRight,
+  Copy, CheckSquare, Square, Users
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -118,6 +119,12 @@ export default function Documents() {
   const [showModalSub, setShowModalSub] = useState(false);
   const [modalSubName, setModalSubName] = useState('');
 
+  // Multi-Auswahl + In Gruppe kopieren
+  const [selectedDocs, setSelectedDocs]       = useState(new Set());
+  const [showCopyModal, setShowCopyModal]     = useState(false);
+  const [copyTargetGroup, setCopyTargetGroup] = useState('');
+  const [copyResult, setCopyResult]           = useState(null); // { copied, skipped }
+
   // ── Daten ────────────────────────────────────────────────────────────────────
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ['documents', catFilter],
@@ -203,6 +210,23 @@ export default function Documents() {
     onSuccess: () => qc.invalidateQueries(['documents']),
   });
 
+  // Gruppen des Nutzers (für Kopieren-Modal)
+  const { data: userGroups = [] } = useQuery({
+    queryKey: ['groups'],
+    queryFn: () => api.get('/groups'),
+  });
+
+  const copyMut = useMutation({
+    mutationFn: ({ doc_ids, group_id }) => api.post('/documents/copy-to-group', { doc_ids, group_id }),
+    onSuccess: (data) => {
+      const total   = data.copied?.length ?? 0;
+      const skipped = data.copied?.filter(c => c.skipped).length ?? 0;
+      setCopyResult({ total, skipped, copied: total - skipped });
+      setSelectedDocs(new Set());
+      qc.invalidateQueries(['documents']);
+    },
+  });
+
   // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
   const handleUpload = () => {
     if (!selectedFile) return;
@@ -216,7 +240,18 @@ export default function Documents() {
     uploadMut.mutate(fd);
   };
 
-  const selectCat = val => { setCatFilter(val); setSubFilter(''); setShowNewSub(false); };
+  const selectCat = val => { setCatFilter(val); setSubFilter(''); setShowNewSub(false); setSelectedDocs(new Set()); };
+
+  const toggleDoc = id => setSelectedDocs(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleAll = () => {
+    if (selectedDocs.size === filtered.length) { setSelectedDocs(new Set()); }
+    else { setSelectedDocs(new Set(filtered.map(d => d.id))); }
+  };
 
   const filtered = docs.filter(d => {
     if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.filename.toLowerCase().includes(search.toLowerCase())) return false;
@@ -343,6 +378,36 @@ export default function Documents() {
         )}
       </div>
 
+      {/* ── Aktionsleiste (erscheint wenn Dokumente ausgewählt) ─────────────── */}
+      {selectedDocs.size > 0 && (
+        <div style={{
+          position: 'sticky', top: '12px', zIndex: 40,
+          background: '#1a1a1a', border: '1px solid #f97316',
+          borderRadius: '14px', padding: '10px 16px',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          boxShadow: '0 4px 24px rgba(249,115,22,0.2)',
+        }}>
+          <span style={{ fontSize: '13px', color: '#f97316', fontWeight: 600, flex: 1 }}>
+            {selectedDocs.size} Dokument{selectedDocs.size !== 1 ? 'e' : ''} ausgewählt
+          </span>
+          <button onClick={() => setSelectedDocs(new Set())}
+            style={{ fontSize: '12px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', padding: '5px 10px' }}>
+            Abwählen
+          </button>
+          <button
+            onClick={() => { setCopyResult(null); setCopyTargetGroup(userGroups[0]?.id?.toString() || ''); setShowCopyModal(true); }}
+            disabled={userGroups.length === 0}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '7px 14px', background: '#f97316', color: '#fff',
+              border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 600,
+              cursor: userGroups.length === 0 ? 'not-allowed' : 'pointer', opacity: userGroups.length === 0 ? 0.5 : 1,
+            }}>
+            <Users size={14} /> In Gruppe kopieren
+          </button>
+        </div>
+      )}
+
       {/* ── Dokument-Liste ───────────────────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>
@@ -354,31 +419,52 @@ export default function Documents() {
         </div>
       ) : (
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
+          {/* Kopfzeile der Liste: "Alle auswählen" */}
+          <div style={{ padding: '8px 16px 6px', borderBottom: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <button onClick={toggleAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: selectedDocs.size === filtered.length && filtered.length > 0 ? '#f97316' : '#475569', display: 'flex', padding: 0 }}>
+              {selectedDocs.size === filtered.length && filtered.length > 0
+                ? <CheckSquare size={15} />
+                : <Square size={15} />}
+            </button>
+            <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, userSelect: 'none' }}>
+              {selectedDocs.size > 0 ? `${selectedDocs.size} / ${filtered.length} ausgewählt` : 'Alle auswählen'}
+            </span>
+          </div>
           <div className="divide-y divide-border">
-            {filtered.map(doc => (
-              <div key={doc.id} className="flex items-center gap-3 px-4 py-3 hover:bg-bg-hover transition-colors group">
-                <div className="w-9 h-9 bg-bg rounded-lg flex items-center justify-center shrink-0">{fileIcon(doc.mimetype)}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                  <p className="text-xs text-slate-500 truncate">
-                    <span className="hidden sm:inline">{doc.filename} · </span>
-                    {formatSize(doc.size)}
-                    <span className="hidden md:inline"> · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</span>
-                  </p>
+            {filtered.map(doc => {
+              const isSelected = selectedDocs.has(doc.id);
+              return (
+                <div key={doc.id}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-bg-hover transition-colors group"
+                  style={{ background: isSelected ? 'rgba(249,115,22,0.05)' : undefined }}>
+                  {/* Checkbox */}
+                  <button onClick={() => toggleDoc(doc.id)}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isSelected ? '#f97316' : '#334155', display: 'flex', shrink: 0, padding: 0 }}>
+                    {isSelected ? <CheckSquare size={15} /> : <Square size={15} className="opacity-0 group-hover:opacity-100" style={{ transition: 'opacity 0.15s' }} />}
+                  </button>
+                  <div className="w-9 h-9 bg-bg rounded-lg flex items-center justify-center shrink-0">{fileIcon(doc.mimetype)}</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                    <p className="text-xs text-slate-500 truncate">
+                      <span className="hidden sm:inline">{doc.filename} · </span>
+                      {formatSize(doc.size)}
+                      <span className="hidden md:inline"> · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</span>
+                    </p>
+                  </div>
+                  {(doc.category || doc.subcategory) && (
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0 hidden sm:inline">
+                      {doc.category}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
+                    </span>
+                  )}
+                  <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
+                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '' }); setShowEdit(true); }}
+                      className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
+                    <button onClick={() => delMut.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                  </div>
                 </div>
-                {(doc.category || doc.subcategory) && (
-                  <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0 hidden sm:inline">
-                    {doc.category}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
-                  </span>
-                )}
-                <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                  <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
-                  <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '' }); setShowEdit(true); }}
-                    className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
-                  <button onClick={() => delMut.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -446,6 +532,74 @@ export default function Documents() {
               {uploadMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Hochladen
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* ── In Gruppe kopieren Modal ─────────────────────────────────────────── */}
+      <Modal open={showCopyModal} onClose={() => { setShowCopyModal(false); setCopyResult(null); }} title="In Gruppe kopieren" size="sm">
+        <div className="space-y-4">
+          {copyResult ? (
+            /* Ergebnis */
+            <div className="space-y-3">
+              <div style={{ background: '#16a34a1a', border: '1px solid #16a34a44', borderRadius: '12px', padding: '14px 16px' }}>
+                <p style={{ color: '#4ade80', fontWeight: 600, fontSize: '14px', marginBottom: '4px' }}>
+                  ✓ {copyResult.copied} Dokument{copyResult.copied !== 1 ? 'e' : ''} kopiert
+                </p>
+                {copyResult.skipped > 0 && (
+                  <p style={{ color: '#94a3b8', fontSize: '12px' }}>
+                    {copyResult.skipped} bereits vorhanden (übersprungen)
+                  </p>
+                )}
+              </div>
+              <div className="flex justify-end">
+                <button onClick={() => { setShowCopyModal(false); setCopyResult(null); }}
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium">
+                  Fertig
+                </button>
+              </div>
+            </div>
+          ) : (
+            /* Gruppen-Auswahl */
+            <>
+              <div>
+                <p className="text-sm text-slate-400 mb-1">{selectedDocs.size} Dokument{selectedDocs.size !== 1 ? 'e' : ''} werden kopiert in:</p>
+                {userGroups.length === 0 ? (
+                  <p className="text-sm text-slate-500 italic">Du bist in keiner Gruppe.</p>
+                ) : (
+                  <div className="space-y-2 mt-3">
+                    {userGroups.map(g => (
+                      <label key={g.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '10px',
+                        padding: '10px 14px', borderRadius: '10px', cursor: 'pointer',
+                        background: copyTargetGroup === String(g.id) ? 'rgba(249,115,22,0.1)' : '#1a1a1a',
+                        border: `1px solid ${copyTargetGroup === String(g.id) ? '#f97316' : '#1e1e1e'}`,
+                        transition: 'all 0.15s',
+                      }}>
+                        <input type="radio" name="copyGroup" value={g.id}
+                          checked={copyTargetGroup === String(g.id)}
+                          onChange={() => setCopyTargetGroup(String(g.id))}
+                          style={{ accentColor: '#f97316' }} />
+                        <div>
+                          <p style={{ fontSize: '13px', color: '#fff', fontWeight: 500 }}>{g.name}</p>
+                          {g.description && <p style={{ fontSize: '11px', color: '#64748b' }}>{g.description}</p>}
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setShowCopyModal(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
+                <button
+                  onClick={() => copyMut.mutate({ doc_ids: [...selectedDocs], group_id: parseInt(copyTargetGroup) })}
+                  disabled={!copyTargetGroup || copyMut.isPending}
+                  className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium disabled:opacity-50">
+                  {copyMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Copy size={14} />}
+                  Kopieren
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

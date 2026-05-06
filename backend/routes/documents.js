@@ -137,6 +137,32 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
   res.json(db.prepare('SELECT * FROM documents WHERE id = ?').get(result.lastInsertRowid));
 });
 
+// ── In Gruppe kopieren ────────────────────────────────────────────────────────
+router.post('/copy-to-group', auth, (req, res) => {
+  const { doc_ids, group_id } = req.body;
+  if (!doc_ids?.length || !group_id) return res.status(400).json({ error: 'doc_ids und group_id erforderlich' });
+
+  // Benutzer muss Mitglied der Zielgruppe sein
+  const member = db.prepare('SELECT id FROM group_members WHERE group_id = ? AND user_id = ?').get(group_id, req.user.id);
+  if (!member) return res.status(403).json({ error: 'Kein Zugriff auf diese Gruppe' });
+
+  const copied = [];
+  for (const id of doc_ids) {
+    const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ? AND group_id IS NULL').get(id, req.user.id);
+    if (!doc) continue; // überspringen wenn nicht vorhanden oder nicht persönlich
+
+    // Prüfen ob bereits in dieser Gruppe (gleicher Titel + Dateiname)
+    const exists = db.prepare('SELECT id FROM documents WHERE group_id = ? AND filename = ? AND uploaded_by = ?').get(group_id, doc.filename, req.user.id);
+    if (exists) { copied.push({ id: exists.id, skipped: true }); continue; }
+
+    const result = db.prepare(
+      'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(doc.title, doc.filename, doc.filepath, doc.size, doc.mimetype, doc.category, doc.subcategory, doc.description, group_id, doc.nc_path, req.user.id);
+    copied.push({ id: result.lastInsertRowid, skipped: false });
+  }
+  res.json({ success: true, copied });
+});
+
 router.put('/:id', auth, (req, res) => {
   const { title, category, description, subcategory } = req.body;
   db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ? WHERE id = ? AND uploaded_by = ?')
