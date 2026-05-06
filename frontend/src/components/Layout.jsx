@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { Menu, RefreshCw, Sparkles } from 'lucide-react';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import { SocketManager, NotificationPanel, ToastContainer, NotificationBell } from './Notifications';
 import useAuth from '../stores/auth';
+import api from '../api/client';
 
 /* ── Seiten-Titel ────────────────────────────────────────────────── */
 function usePageTitle() {
@@ -38,6 +39,68 @@ function useCollapsed() {
   return [collapsed, toggle];
 }
 
+/* ── Update-Banner ───────────────────────────────────────────────── */
+function UpdateBanner() {
+  const [show, setShow] = useState(false);
+  const [info, setInfo] = useState(null);
+  const deployedRef = useRef(null);
+
+  useEffect(() => {
+    const check = async () => {
+      try {
+        const data = await api.get('/version');
+        if (!deployedRef.current) {
+          deployedRef.current = data.deployedAt;
+        } else if (deployedRef.current !== data.deployedAt) {
+          setInfo(data);
+          setShow(true);
+        }
+      } catch {}
+    };
+    check();
+    const interval = setInterval(check, 5 * 60 * 1000); // alle 5 Min prüfen
+    return () => clearInterval(interval);
+  }, []);
+
+  if (!show) return null;
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+      background: 'linear-gradient(90deg, #1a0800, #2d1200, #1a0800)',
+      borderBottom: '1px solid rgba(249,115,22,0.4)',
+      padding: '10px 16px',
+      display: 'flex', alignItems: 'center', gap: '10px',
+      boxShadow: '0 2px 20px rgba(249,115,22,0.2)',
+    }}>
+      <Sparkles size={15} color="#f97316" style={{ flexShrink: 0 }} />
+      <span style={{ flex: 1, fontSize: '13px', color: '#e2e8f0' }}>
+        <span style={{ color: '#f97316', fontWeight: 700 }}>
+          Gino-Home {info?.version}
+        </span>
+        {' '}ist verfügbar —{' '}
+        <span style={{ color: '#94a3b8' }}>
+          {info?.changelog?.[0]?.title}
+        </span>
+      </span>
+      <button
+        onClick={() => window.location.reload()}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '6px 14px', background: '#f97316', color: '#fff',
+          border: 'none', borderRadius: '8px', fontSize: '12px',
+          fontWeight: 600, cursor: 'pointer', flexShrink: 0,
+        }}>
+        <RefreshCw size={12} /> Jetzt aktualisieren
+      </button>
+      <button onClick={() => setShow(false)}
+        style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px', flexShrink: 0, fontSize: '16px', lineHeight: 1 }}>
+        ✕
+      </button>
+    </div>
+  );
+}
+
 export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
@@ -56,6 +119,7 @@ export default function Layout() {
 
   return (
     <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', backgroundColor: '#0f0f0f' }}>
+      <UpdateBanner />
       <SocketManager />
       <NotificationPanel />
       <ToastContainer />

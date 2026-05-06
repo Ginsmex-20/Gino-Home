@@ -4,11 +4,13 @@ import {
   User, Camera, Save, Lock, Loader2, UserPlus, Trash2,
   ShieldCheck, ToggleLeft, ToggleRight, Phone, FileText,
   Calendar, AtSign, KeyRound, CheckCircle2, XCircle,
+  Sparkles, RefreshCw, Check,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import api from '../api/client';
 import useAuth from '../stores/auth';
+import { useQuery } from '@tanstack/react-query';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 /* ── Kleine Hilfskomponenten ──────────────────────────────────────────── */
@@ -284,6 +286,102 @@ function UserManagement() {
   );
 }
 
+/* ── Updates Card ────────────────────────────────────────────────────── */
+function UpdatesCard() {
+  const { data: versionInfo } = useQuery({
+    queryKey: ['app-version'],
+    queryFn: () => api.get('/version'),
+    staleTime: 60 * 1000,
+  });
+
+  const isElectron = typeof window !== 'undefined' &&
+    (window.navigator.userAgent.includes('Gino-Home') || !!window.__ELECTRON__);
+
+  return (
+    <Card>
+      <CardHeader icon={Sparkles} title="Updates" accent="#f97316" />
+      <div style={{ padding: '20px 22px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+        {/* Aktuelle Version + Aktualisieren */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '12px 16px', background: '#0f0f0f',
+          borderRadius: '14px', border: '1px solid #1e1e1e', gap: '12px', flexWrap: 'wrap',
+        }}>
+          <div>
+            <p style={{ margin: 0, color: '#fff', fontWeight: 600, fontSize: '14px' }}>
+              Gino-Home {versionInfo?.version ?? '…'}
+            </p>
+            <p style={{ margin: '2px 0 0', color: '#475569', fontSize: '12px' }}>
+              {versionInfo?.deployedAt
+                ? `Deployed: ${new Date(versionInfo.deployedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })}`
+                : 'Lädt…'}
+            </p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 16px', background: '#f97316',
+              color: '#fff', border: 'none', borderRadius: '10px',
+              fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(249,115,22,0.3)', flexShrink: 0,
+            }}>
+            <RefreshCw size={13} /> Seite neu laden
+          </button>
+        </div>
+
+        {/* Hinweis für Electron-App */}
+        {isElectron && (
+          <div style={{
+            padding: '10px 14px', background: 'rgba(249,115,22,0.06)',
+            border: '1px solid rgba(249,115,22,0.2)', borderRadius: '12px',
+            fontSize: '12px', color: '#94a3b8',
+          }}>
+            💻 <strong style={{ color: '#f97316' }}>Desktop App:</strong>{' '}
+            Neue App-Versionen erscheinen automatisch als Benachrichtigung.
+          </div>
+        )}
+
+        {/* Changelog */}
+        {versionInfo?.changelog?.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <p style={{ margin: 0, color: '#374151', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              Was ist neu
+            </p>
+            {versionInfo.changelog.map((entry, i) => (
+              <div key={entry.version} style={{
+                padding: '14px 16px', borderRadius: '14px',
+                background: i === 0 ? 'rgba(249,115,22,0.05)' : '#0f0f0f',
+                border: `1px solid ${i === 0 ? 'rgba(249,115,22,0.2)' : '#1e1e1e'}`,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                  <span style={{
+                    padding: '2px 8px', borderRadius: '6px',
+                    background: i === 0 ? '#f97316' : '#1e1e1e',
+                    color: i === 0 ? '#fff' : '#64748b',
+                    fontSize: '11px', fontWeight: 700,
+                  }}>v{entry.version}</span>
+                  <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: 500 }}>{entry.title}</span>
+                  <span style={{ marginLeft: 'auto', color: '#334155', fontSize: '11px' }}>{entry.date}</span>
+                </div>
+                <ul style={{ margin: 0, padding: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  {entry.items.map((item, j) => (
+                    <li key={j} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '13px', color: '#94a3b8' }}>
+                      <Check size={12} style={{ color: '#f97316', flexShrink: 0, marginTop: '2px' }} />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 /* ── Profile Page ────────────────────────────────────────────────────── */
 export default function Profile() {
   const { user, updateUser, isOwner } = useAuth();
@@ -518,6 +616,9 @@ export default function Profile() {
           </form>
         </div>
       </Card>
+
+      {/* ── Updates ─────────────────────────────────────────────────── */}
+      <UpdatesCard />
 
       {/* ── Owner: Benutzerverwaltung ─────────────────────────────────── */}
       {isOwner() && <UserManagement />}

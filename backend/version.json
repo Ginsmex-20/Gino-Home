@@ -1,0 +1,27 @@
+{
+  "version": "1.0.1",
+  "changelog": [
+    {
+      "version": "1.0.1",
+      "date": "2026-05-06",
+      "title": "Dokumente in Gruppe teilen",
+      "items": [
+        "Persönliche Dokumente können jetzt in Gruppen kopiert werden",
+        "Multi-Auswahl für Dokumente mit Checkboxen",
+        "Neue Aktionsleiste beim Auswählen von Dokumenten"
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-04-30",
+      "title": "Erster Release 🎉",
+      "items": [
+        "Dokumente, Finanzen, Aufgaben & Kalender",
+        "Gruppen mit geteiltem Zugriff für die Familie",
+        "Google OAuth Login",
+        "Electron Desktop App (Windows & Mac)",
+        "Sicherer Zugriff über Cloudflare Tunnel (HTTPS)"
+      ]
+    }
+  ]
+}

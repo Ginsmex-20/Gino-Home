@@ -128,6 +128,13 @@ app.use('/api/workspace',          require('./routes/workspace'));
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString() }));
 
+// ── Version / Update-Info ─────────────────────────────────────────────────────
+const VERSION_INFO = require('./version.json');
+const SERVER_START = new Date().toISOString();
+app.get('/api/version', (req, res) => {
+  res.json({ ...VERSION_INFO, deployedAt: SERVER_START });
+});
+
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Interner Serverfehler' });

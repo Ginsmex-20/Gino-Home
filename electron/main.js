@@ -1,6 +1,32 @@
-const { app, BrowserWindow, shell, Menu, session } = require('electron');
+const { app, BrowserWindow, shell, Menu, session, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs   = require('fs');
+
+// Auto-Updater (nur im Produktionsmodus)
+let autoUpdater = null;
+try {
+  autoUpdater = require('electron-updater').autoUpdater;
+  autoUpdater.autoDownload = false;
+  autoUpdater.on('update-available', info => {
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update verfügbar 🎉',
+      message: `Gino-Home ${info.version} ist verfügbar!`,
+      detail: 'Möchtest du die neue Version jetzt herunterladen und installieren?',
+      buttons: ['Jetzt aktualisieren', 'Später'],
+      defaultId: 0,
+    }).then(({ response }) => {
+      if (response === 0) {
+        autoUpdater.downloadUpdate();
+        dialog.showMessageBox({ type: 'info', message: 'Download läuft…\nDie App startet automatisch neu wenn fertig.', buttons: ['OK'] });
+      }
+    });
+  });
+  autoUpdater.on('update-downloaded', () => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+  autoUpdater.on('error', () => {}); // Fehler still ignorieren
+} catch {} // electron-updater nicht verfügbar im Dev-Modus
 
 // ── Konfiguration ───────────────────────────────────────────────────────────
 const APP_URL  = 'https://ginohome.de';
@@ -138,6 +164,11 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => { mainWindow = null; });
+
+  // Nach Update-Check 10 Sekunden nach Start
+  if (!isDev && autoUpdater) {
+    setTimeout(() => { try { autoUpdater.checkForUpdates(); } catch {} }, 10000);
+  };
 }
 
 // ── SSL: ginohome.de vertrauen auch bei ungültigem Zertifikat ──────────────

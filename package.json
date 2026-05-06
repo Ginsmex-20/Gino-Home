@@ -97,11 +97,17 @@
       ],
       "icon": "electron/icon.png",
       "category": "Office"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "Ginsmex-20",
+      "repo": "Gino-Home"
     }
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "electron": "^41.3.0",
-    "electron-builder": "^24.13.3"
+    "electron-builder": "^24.13.3",
+    "electron-updater": "^6.3.9"
   }
 }
