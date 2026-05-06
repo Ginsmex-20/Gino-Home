@@ -58,8 +58,12 @@ function UpdateBanner() {
       } catch {}
     };
     check();
-    const interval = setInterval(check, 5 * 60 * 1000); // alle 5 Min prüfen
-    return () => clearInterval(interval);
+    const interval = setInterval(check, 30 * 1000); // alle 30 Sek prüfen
+    window.addEventListener('socket:reconnect', check);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('socket:reconnect', check);
+    };
   }, []);
 
   if (!show) return null;

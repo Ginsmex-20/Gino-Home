@@ -29,7 +29,10 @@ export function connectSocket(token) {
     transports: ['websocket', 'polling'],
   });
 
-  socket.on('connect', () => console.log('[Socket] ✅ Verbunden'));
+  socket.on('connect', () => {
+    console.log('[Socket] ✅ Verbunden');
+    window.dispatchEvent(new Event('socket:reconnect'));
+  });
   socket.on('connect_error', err => console.warn('[Socket] Verbindungsfehler:', err.message));
   socket.on('disconnect', reason => console.log('[Socket] Getrennt:', reason));
 

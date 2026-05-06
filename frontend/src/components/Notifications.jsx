@@ -245,8 +245,50 @@ export function ToastContainer() {
 }
 
 // ── Glocken-Button (wird in Sidebar + Mobile-Header verwendet) ───────────────
-export function NotificationBell({ style = {} }) {
+export function NotificationBell({ style = {}, noClick = false }) {
   const { unread, togglePanel } = useNotifications();
+
+  const bellContent = (
+    <>
+      <Bell size={18} />
+      {unread > 0 && (
+        <span style={{
+          position: 'absolute',
+          top: '2px', right: '2px',
+          minWidth: '16px', height: '16px',
+          background: '#ef4444',
+          borderRadius: '10px',
+          fontSize: '10px',
+          fontWeight: 700,
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0 3px',
+          border: '1.5px solid #111',
+        }}>
+          {unread > 9 ? '9+' : unread}
+        </span>
+      )}
+    </>
+  );
+
+  if (noClick) {
+    return (
+      <div style={{
+        position: 'relative',
+        padding: '6px',
+        color: '#64748b',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...style,
+      }}>
+        {bellContent}
+      </div>
+    );
+  }
+
   return (
     <button
       onClick={togglePanel}
@@ -268,26 +310,7 @@ export function NotificationBell({ style = {} }) {
       onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; }}
       onMouseLeave={e => { e.currentTarget.style.color = '#64748b'; }}
     >
-      <Bell size={18} />
-      {unread > 0 && (
-        <span style={{
-          position: 'absolute',
-          top: '2px', right: '2px',
-          minWidth: '16px', height: '16px',
-          background: '#ef4444',
-          borderRadius: '10px',
-          fontSize: '10px',
-          fontWeight: 700,
-          color: '#fff',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '0 3px',
-          border: '1.5px solid #111',
-        }}>
-          {unread > 9 ? '9+' : unread}
-        </span>
-      )}
+      {bellContent}
     </button>
   );
 }

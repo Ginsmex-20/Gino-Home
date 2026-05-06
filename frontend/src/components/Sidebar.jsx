@@ -9,6 +9,7 @@ import {
 import useAuth from '../stores/auth';
 import api from '../api/client';
 import { NotificationBell } from './Notifications';
+import useNotifications from '../stores/notifications';
 
 const personalNav = [
   { to: '/',           icon: LayoutDashboard, label: 'Dashboard',  exact: true },
@@ -178,6 +179,7 @@ function GroupsSection({ onClose, collapsed }) {
 /* ── Haupt-Sidebar ──────────────────────────────────────────────── */
 export default function Sidebar({ onClose, isMobile, collapsed = false, onToggleCollapse }) {
   const { user, logout } = useAuth();
+  const { togglePanel } = useNotifications();
   const navigate = useNavigate();
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -326,19 +328,24 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
         gap: '4px',
       }}>
         {/* Benachrichtigungs-Glocke */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: collapsed ? 'center' : 'flex-start',
-          padding: collapsed ? '0' : '4px 4px',
-        }}>
-          <NotificationBell />
-          {!collapsed && (
-            <span style={{ marginLeft: '8px', fontSize: '14px', fontWeight: 500, color: '#64748b' }}>
-              Benachrichtigungen
-            </span>
-          )}
-        </div>
+        <button
+          onClick={togglePanel}
+          title={collapsed ? 'Benachrichtigungen' : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', width: '100%',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            padding: collapsed ? '0' : '10px 12px',
+            height: collapsed ? '44px' : undefined,
+            borderRadius: '12px', background: 'transparent', border: 'none',
+            cursor: 'pointer', gap: collapsed ? 0 : '10px',
+            transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <NotificationBell noClick />
+          {!collapsed && <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748b' }}>Benachrichtigungen</span>}
+        </button>
         <NavLink
           to="/profile"
           onClick={() => onClose?.()}

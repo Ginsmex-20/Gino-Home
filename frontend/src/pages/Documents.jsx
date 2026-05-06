@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, FileText, File, Image, Trash2, Edit, Download,
   Search, Loader2, FilePlus, X, Film, Music, Archive, FileCode, ChevronRight,
-  Copy, CheckSquare, Square, Users
+  Copy, CheckSquare, Square, Users, Star, AlertCircle, ArrowDownUp
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -63,6 +63,14 @@ function formatSize(b) {
   return (b / 1048576).toFixed(1) + ' MB';
 }
 
+// ── Wichtigkeitskonfiguration ─────────────────────────────────────────────────
+const IMPORTANCE = {
+  dringend: { label: 'Dringend', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: '#ef4444' },
+  wichtig:  { label: 'Wichtig',  color: '#f97316', bg: 'rgba(249,115,22,0.1)', border: '#f97316' },
+  normal:   { label: 'Normal',   color: '#64748b', bg: 'rgba(100,116,139,0.08)', border: 'transparent' },
+  archiv:   { label: 'Archiv',   color: '#334155', bg: 'rgba(51,65,85,0.15)', border: '#1e293b' },
+};
+
 // ── Pill-Button ───────────────────────────────────────────────────────────────
 function Pill({ active, onClick, children, onDelete }) {
   return (
@@ -95,6 +103,8 @@ export default function Documents() {
   const [catFilter,   setCatFilter]   = useState('');   // z.B. 'contract'
   const [subFilter,   setSubFilter]   = useState('');   // z.B. 'Handyvertrag O2'
   const [typeFilter,  setTypeFilter]  = useState('');
+  const [sortBy,      setSortBy]      = useState('importance'); // 'importance' | 'date' | 'name' | 'size'
+  const [importanceFilter, setImportanceFilter] = useState(''); // '' | 'starred' | 'dringend' | 'wichtig' | 'archiv'
 
   // Modals
   const [showUpload,  setShowUpload]  = useState(false);
@@ -104,7 +114,7 @@ export default function Documents() {
   // Formulare
   const [uploadForm,  setUploadForm]  = useState({ title: '', category: 'contract', subcategory: '', description: '' });
   const [selectedFile,setSelectedFile]= useState(null);
-  const [editForm,    setEditForm]    = useState({ title: '', category: '', subcategory: '', description: '' });
+  const [editForm,    setEditForm]    = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0 });
   const [uploadError, setUploadError] = useState('');
 
   // Neue Kategorie inline
@@ -227,6 +237,16 @@ export default function Documents() {
     },
   });
 
+  const starMut = useMutation({
+    mutationFn: id => api.patch(`/documents/${id}/star`, {}),
+    onSuccess: () => qc.invalidateQueries(['documents']),
+  });
+
+  const importanceMut = useMutation({
+    mutationFn: ({ id, importance }) => api.patch(`/documents/${id}/importance`, { importance }),
+    onSuccess: () => qc.invalidateQueries(['documents']),
+  });
+
   // ── Hilfsfunktionen ──────────────────────────────────────────────────────────
   const handleUpload = () => {
     if (!selectedFile) return;
@@ -249,8 +269,8 @@ export default function Documents() {
   });
 
   const toggleAll = () => {
-    if (selectedDocs.size === filtered.length) { setSelectedDocs(new Set()); }
-    else { setSelectedDocs(new Set(filtered.map(d => d.id))); }
+    if (selectedDocs.size === sortedFiltered.length) { setSelectedDocs(new Set()); }
+    else { setSelectedDocs(new Set(sortedFiltered.map(d => d.id))); }
   };
 
   const filtered = docs.filter(d => {
@@ -259,6 +279,26 @@ export default function Documents() {
     if (subFilter && d.subcategory !== subFilter) return false;
     return true;
   });
+
+  const sortedFiltered = [...filtered]
+    .filter(d => {
+      if (importanceFilter === 'starred') return d.starred;
+      if (importanceFilter) return d.importance === importanceFilter;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'importance') {
+        const order = { dringend: 0, wichtig: 1, normal: 2, archiv: 3 };
+        const diff = (order[a.importance] ?? 2) - (order[b.importance] ?? 2);
+        if (diff !== 0) return diff;
+        if (b.starred !== a.starred) return b.starred - a.starred;
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at);
+      if (sortBy === 'name') return a.title.localeCompare(b.title);
+      if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
+      return 0;
+    });
 
   // Label der aktiven Kategorie für Anzeige
   const activeCatLabel = catFilter
@@ -408,10 +448,49 @@ export default function Documents() {
         </div>
       )}
 
+      {/* ── Sort-Bar ────────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <ArrowDownUp size={13} style={{ color: '#475569', flexShrink: 0 }} />
+        <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sortierung:</span>
+        {[
+          { key: 'importance', label: 'Wichtigkeit' },
+          { key: 'date',       label: 'Datum' },
+          { key: 'name',       label: 'Name' },
+          { key: 'size',       label: 'Größe' },
+        ].map(s => (
+          <button key={s.key} onClick={() => setSortBy(s.key)} style={{
+            padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+            cursor: 'pointer', transition: 'all 0.15s',
+            background: sortBy === s.key ? '#f97316' : 'transparent',
+            color: sortBy === s.key ? '#fff' : '#64748b',
+            border: sortBy === s.key ? '1px solid #f97316' : '1px solid #2a2a2a',
+          }}>{s.label}</button>
+        ))}
+      </div>
+
+      {/* ── Schnellfilter-Chips ──────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        {[
+          { key: '',        label: 'Alle' },
+          { key: 'starred', label: '⭐ Favoriten' },
+          { key: 'dringend',label: '🔴 Dringend' },
+          { key: 'wichtig', label: '🟡 Wichtig' },
+          { key: 'archiv',  label: '📦 Archiv' },
+        ].map(f => (
+          <button key={f.key} onClick={() => setImportanceFilter(f.key)} style={{
+            padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+            cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+            background: importanceFilter === f.key ? 'rgba(249,115,22,0.15)' : 'transparent',
+            color: importanceFilter === f.key ? '#f97316' : '#64748b',
+            border: importanceFilter === f.key ? '1px solid rgba(249,115,22,0.4)' : '1px solid #2a2a2a',
+          }}>{f.label}</button>
+        ))}
+      </div>
+
       {/* ── Dokument-Liste ───────────────────────────────────────────────────── */}
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>
-      ) : filtered.length === 0 ? (
+      ) : sortedFiltered.length === 0 ? (
         <div className="bg-bg-card border border-border rounded-2xl p-12 text-center">
           <FilePlus size={40} className="text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">Keine Dokumente gefunden</p>
@@ -421,29 +500,40 @@ export default function Documents() {
         <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
           {/* Kopfzeile der Liste: "Alle auswählen" */}
           <div style={{ padding: '8px 16px 6px', borderBottom: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <button onClick={toggleAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: selectedDocs.size === filtered.length && filtered.length > 0 ? '#f97316' : '#475569', display: 'flex', padding: 0 }}>
-              {selectedDocs.size === filtered.length && filtered.length > 0
+            <button onClick={toggleAll} style={{ background: 'none', border: 'none', cursor: 'pointer', color: selectedDocs.size === sortedFiltered.length && sortedFiltered.length > 0 ? '#f97316' : '#475569', display: 'flex', padding: 0 }}>
+              {selectedDocs.size === sortedFiltered.length && sortedFiltered.length > 0
                 ? <CheckSquare size={15} />
                 : <Square size={15} />}
             </button>
             <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, userSelect: 'none' }}>
-              {selectedDocs.size > 0 ? `${selectedDocs.size} / ${filtered.length} ausgewählt` : 'Alle auswählen'}
+              {selectedDocs.size > 0 ? `${selectedDocs.size} / ${sortedFiltered.length} ausgewählt` : 'Alle auswählen'}
             </span>
           </div>
           <div className="divide-y divide-border">
-            {filtered.map(doc => {
+            {sortedFiltered.map(doc => {
               const isSelected = selectedDocs.has(doc.id);
+              const imp = doc.importance || 'normal';
+              const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
               return (
                 <div key={doc.id}
-                  className="flex items-center gap-3 px-4 py-3 hover:bg-bg-hover transition-colors group"
-                  style={{ background: isSelected ? 'rgba(249,115,22,0.05)' : undefined }}>
+                  className="flex items-center group"
+                  style={{
+                    gap: '3px',
+                    borderLeft: `3px solid ${impCfg.border}`,
+                    background: isSelected ? 'rgba(249,115,22,0.05)' : (imp === 'archiv' ? 'rgba(15,23,42,0.5)' : undefined),
+                    opacity: imp === 'archiv' ? 0.6 : 1,
+                    padding: '10px 12px 10px 10px',
+                    transition: 'background 0.15s',
+                  }}>
                   {/* Checkbox */}
                   <button onClick={() => toggleDoc(doc.id)}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isSelected ? '#f97316' : '#334155', display: 'flex', shrink: 0, padding: 0 }}>
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isSelected ? '#f97316' : '#334155', display: 'flex', flexShrink: 0, padding: '4px' }}>
                     {isSelected ? <CheckSquare size={15} /> : <Square size={15} className="opacity-0 group-hover:opacity-100" style={{ transition: 'opacity 0.15s' }} />}
                   </button>
-                  <div className="w-9 h-9 bg-bg rounded-lg flex items-center justify-center shrink-0">{fileIcon(doc.mimetype)}</div>
-                  <div className="flex-1 min-w-0">
+                  {/* File icon */}
+                  <div className="w-9 h-9 bg-bg rounded-lg flex items-center justify-center" style={{ flexShrink: 0 }}>{fileIcon(doc.mimetype)}</div>
+                  {/* Title + meta */}
+                  <div style={{ flex: 1, minWidth: 0, padding: '0 8px' }}>
                     <p className="text-sm font-medium text-white truncate">{doc.title}</p>
                     <p className="text-xs text-slate-500 truncate">
                       <span className="hidden sm:inline">{doc.filename} · </span>
@@ -451,14 +541,48 @@ export default function Documents() {
                       <span className="hidden md:inline"> · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</span>
                     </p>
                   </div>
+                  {/* Category badge */}
                   {(doc.category || doc.subcategory) && (
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0 hidden sm:inline">
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 hidden sm:inline" style={{ flexShrink: 0 }}>
                       {doc.category}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
                     </span>
                   )}
-                  <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  {/* Importance badge — click to cycle */}
+                  {imp !== 'normal' && (
+                    <button
+                      onClick={() => {
+                        const levels = ['normal', 'wichtig', 'dringend', 'archiv'];
+                        const next = levels[(levels.indexOf(imp) + 1) % levels.length];
+                        importanceMut.mutate({ id: doc.id, importance: next });
+                      }}
+                      title="Wichtigkeit ändern"
+                      style={{
+                        padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                        background: impCfg.bg, color: impCfg.color,
+                        border: `1px solid ${impCfg.border}`,
+                        cursor: 'pointer', flexShrink: 0,
+                      }}
+                    >
+                      {impCfg.label}
+                    </button>
+                  )}
+                  {/* Star button */}
+                  <button
+                    onClick={() => starMut.mutate(doc.id)}
+                    title={doc.starred ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: doc.starred ? '#f59e0b' : '#334155',
+                      display: 'flex', padding: '4px', flexShrink: 0,
+                      transition: 'color 0.15s',
+                    }}
+                  >
+                    <Star size={14} fill={doc.starred ? '#f59e0b' : 'none'} />
+                  </button>
+                  {/* Actions */}
+                  <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0 }}>
                     <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
-                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '' }); setShowEdit(true); }}
+                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0 }); setShowEdit(true); }}
                       className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
                     <button onClick={() => delMut.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
@@ -625,6 +749,23 @@ export default function Documents() {
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={editForm.description}
               onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Wichtigkeit</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {Object.entries(IMPORTANCE).map(([key, cfg]) => (
+                <button key={key}
+                  onClick={() => setEditForm(f => ({ ...f, importance: key }))}
+                  style={{
+                    padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+                    cursor: 'pointer', border: `1px solid ${editForm.importance === key ? cfg.color : '#2a2a2a'}`,
+                    background: editForm.importance === key ? cfg.bg : 'transparent',
+                    color: editForm.importance === key ? cfg.color : '#64748b',
+                  }}>
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
             <button onClick={() => editMut.mutate({ id: editDoc.id, data: editForm })} disabled={editMut.isPending}

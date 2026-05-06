@@ -149,24 +149,49 @@ router.post('/copy-to-group', auth, (req, res) => {
   const copied = [];
   for (const id of doc_ids) {
     const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ? AND group_id IS NULL').get(id, req.user.id);
-    if (!doc) continue; // überspringen wenn nicht vorhanden oder nicht persönlich
+    if (!doc) continue;
 
-    // Prüfen ob bereits in dieser Gruppe (gleicher Titel + Dateiname)
-    const exists = db.prepare('SELECT id FROM documents WHERE group_id = ? AND filename = ? AND uploaded_by = ?').get(group_id, doc.filename, req.user.id);
+    // Ensure subcategory exists in target group (for custom subcategories)
+    if (doc.subcategory && doc.category) {
+      const subExists = db.prepare('SELECT id FROM document_subcategories WHERE name = ? AND parent_category = ? AND group_id = ?')
+        .get(doc.subcategory, doc.category, group_id);
+      if (!subExists) {
+        try {
+          db.prepare('INSERT INTO document_subcategories (name, parent_category, created_by, group_id) VALUES (?, ?, ?, ?)')
+            .run(doc.subcategory, doc.category, req.user.id, group_id);
+        } catch {}
+      }
+    }
+
+    const exists = db.prepare('SELECT id FROM documents WHERE group_id = ? AND filename = ? AND uploaded_by = ?')
+      .get(group_id, doc.filename, req.user.id);
     if (exists) { copied.push({ id: exists.id, skipped: true }); continue; }
 
     const result = db.prepare(
-      'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-    ).run(doc.title, doc.filename, doc.filepath, doc.size, doc.mimetype, doc.category, doc.subcategory, doc.description, group_id, doc.nc_path, req.user.id);
+      'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by, importance, starred) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    ).run(doc.title, doc.filename, doc.filepath, doc.size, doc.mimetype, doc.category, doc.subcategory, doc.description, group_id, doc.nc_path, req.user.id, doc.importance || 'normal', doc.starred || 0);
     copied.push({ id: result.lastInsertRowid, skipped: false });
   }
   res.json({ success: true, copied });
 });
 
+router.patch('/:id/star', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ?').get(req.params.id, req.user.id);
+  if (!doc) return res.status(404).json({ error: 'Nicht gefunden' });
+  db.prepare('UPDATE documents SET starred = ? WHERE id = ?').run(doc.starred ? 0 : 1, req.params.id);
+  res.json({ starred: !doc.starred });
+});
+
+router.patch('/:id/importance', auth, (req, res) => {
+  const { importance } = req.body;
+  db.prepare('UPDATE documents SET importance = ? WHERE id = ?').run(importance, req.params.id);
+  res.json({ success: true });
+});
+
 router.put('/:id', auth, (req, res) => {
-  const { title, category, description, subcategory } = req.body;
-  db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ? WHERE id = ? AND uploaded_by = ?')
-    .run(title, category, subcategory || null, description, req.params.id, req.user.id);
+  const { title, category, description, subcategory, importance, starred } = req.body;
+  db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ?, importance = ?, starred = ? WHERE id = ? AND uploaded_by = ?')
+    .run(title, category, subcategory || null, description, importance || 'normal', starred ? 1 : 0, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id));
 });
 
