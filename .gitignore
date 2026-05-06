@@ -17,3 +17,10 @@ Thumbs.db
 
 # TrueNAS Docker Volumes (Daten bleiben auf dem Server)
 data/
+
+# Xcode (apple/)
+apple/build/
+apple/**/xcuserdata/
+apple/**/*.xcworkspace/xcuserdata/
+apple/DerivedData/
+*.xcuserstate
