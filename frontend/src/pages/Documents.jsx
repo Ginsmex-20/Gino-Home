@@ -472,10 +472,10 @@ export default function Documents() {
       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
         {[
           { key: '',        label: 'Alle' },
-          { key: 'starred', label: '⭐ Favoriten' },
-          { key: 'dringend',label: '🔴 Dringend' },
-          { key: 'wichtig', label: '🟡 Wichtig' },
-          { key: 'archiv',  label: '📦 Archiv' },
+          { key: 'starred', label: 'Favoriten' },
+          { key: 'dringend',label: 'Dringend' },
+          { key: 'wichtig', label: 'Wichtig' },
+          { key: 'archiv',  label: 'Archiv' },
         ].map(f => (
           <button key={f.key} onClick={() => setImportanceFilter(f.key)} style={{
             padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,

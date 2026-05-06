@@ -77,6 +77,13 @@ input[type="checkbox"] {
 /* ── Safe-area (iPhone Notch / Home Indicator) ──────────────────────── */
 .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
+/* ── Update-Dot Pulsing Animation ───────────────────────────────────── */
+@keyframes update-pulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%       { transform: scale(1.5); opacity: 0.6; }
+}
+.update-dot { animation: update-pulse 1.5s ease-in-out infinite; }
+
 /* ── Kanban horizontal scroll ───────────────────────────────────────── */
 .kanban-scroll {
   display: flex;

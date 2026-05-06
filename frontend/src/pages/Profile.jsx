@@ -337,7 +337,7 @@ function UpdatesCard() {
             border: '1px solid rgba(249,115,22,0.2)', borderRadius: '12px',
             fontSize: '12px', color: '#94a3b8',
           }}>
-            💻 <strong style={{ color: '#f97316' }}>Desktop App:</strong>{' '}
+            <strong style={{ color: '#f97316' }}>Desktop App:</strong>{' '}
             Neue App-Versionen erscheinen automatisch als Benachrichtigung.
           </div>
         )}

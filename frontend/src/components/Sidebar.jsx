@@ -5,11 +5,13 @@ import {
   LayoutDashboard, Users, CheckSquare, Euro, FileText,
   KeyRound, Calendar, User, LogOut, Home, Briefcase, Star,
   ChevronDown, ChevronRight, Plus, X, PanelLeftClose, PanelLeftOpen, ShoppingCart, Hash, BookOpen, ReceiptText,
+  Zap,
 } from 'lucide-react';
 import useAuth from '../stores/auth';
 import api from '../api/client';
 import { NotificationBell } from './Notifications';
 import useNotifications from '../stores/notifications';
+import useUpdate from '../stores/update';
 
 const personalNav = [
   { to: '/',           icon: LayoutDashboard, label: 'Dashboard',  exact: true },
@@ -180,6 +182,7 @@ function GroupsSection({ onClose, collapsed }) {
 export default function Sidebar({ onClose, isMobile, collapsed = false, onToggleCollapse }) {
   const { user, logout } = useAuth();
   const { togglePanel } = useNotifications();
+  const { hasUpdate } = useUpdate();
   const navigate = useNavigate();
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -346,6 +349,45 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
           <NotificationBell noClick />
           {!collapsed && <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748b' }}>Benachrichtigungen</span>}
         </button>
+        {/* Updates */}
+        <button
+          onClick={() => { navigate('/profile'); onClose?.(); }}
+          title={collapsed ? 'Updates' : undefined}
+          style={{
+            display: 'flex', alignItems: 'center', width: '100%',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            padding: collapsed ? '0' : '10px 12px',
+            height: collapsed ? '44px' : undefined,
+            gap: collapsed ? 0 : '12px',
+            borderRadius: '12px', background: 'transparent', border: 'none',
+            cursor: 'pointer', transition: 'background 0.15s',
+          }}
+          onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+        >
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Zap size={18} color={hasUpdate ? '#22c55e' : '#64748b'} />
+            {hasUpdate && (
+              <span className="update-dot" style={{
+                position: 'absolute', top: -3, right: -3,
+                width: 7, height: 7, borderRadius: '50%',
+                background: '#22c55e',
+              }} />
+            )}
+          </div>
+          {!collapsed && (
+            <span style={{ fontSize: '14px', fontWeight: 500, color: hasUpdate ? '#22c55e' : '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Updates
+              {hasUpdate && (
+                <span className="update-dot" style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: '#22c55e', flexShrink: 0, display: 'inline-block',
+                }} />
+              )}
+            </span>
+          )}
+        </button>
+
         <NavLink
           to="/profile"
           onClick={() => onClose?.()}

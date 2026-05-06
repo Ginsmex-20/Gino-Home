@@ -5,7 +5,8 @@ import {
   CheckSquare, FileText, Calendar as CalIcon, Users, ArrowLeft,
   Plus, Trash2, Loader2, UserMinus, Crown, Hash, RefreshCw, Copy,
   Edit, Upload, Search, Download, Image, File, Clock, Home,
-  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send, X, BookOpen
+  ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send, X, BookOpen,
+  ArrowDownUp, Film, Music, Archive, FileCode,
 } from 'lucide-react';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -47,9 +48,16 @@ function PriBadge({ priority }) {
   return <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${opt.color}`}>{opt.label}</span>;
 }
 function fileIcon(mime) {
-  if (mime?.startsWith('image/')) return <Image size={18} className="text-purple-400" />;
-  if (mime?.includes('pdf'))      return <FileText size={18} className="text-red-400" />;
-  return <File size={18} className="text-blue-400" />;
+  if (!mime) return <File size={18} className="text-slate-400" />;
+  if (mime.startsWith('image/'))   return <Image   size={18} className="text-purple-400" />;
+  if (mime.includes('pdf'))        return <FileText size={18} className="text-red-400" />;
+  if (mime.startsWith('video/'))   return <Film    size={18} className="text-pink-400" />;
+  if (mime.startsWith('audio/'))   return <Music   size={18} className="text-green-400" />;
+  if (['zip','rar','tar'].some(k => mime.includes(k))) return <Archive size={18} className="text-yellow-400" />;
+  if (mime.includes('word') || mime.includes('document'))     return <FileText size={18} className="text-blue-400" />;
+  if (mime.includes('excel') || mime.includes('spreadsheet')) return <FileText size={18} className="text-emerald-400" />;
+  if (mime.startsWith('text/')) return <FileCode size={18} className="text-cyan-400" />;
+  return <File size={18} className="text-slate-400" />;
 }
 function formatSize(b) {
   if (!b) return '–';
@@ -216,6 +224,23 @@ const DOC_FILE_TYPES = [
   { label: 'Archive',    value: 'archive' },
 ];
 
+const DOC_CATS = [
+  { label: 'Alle',         value: '' },
+  { label: 'Vertrag',      value: 'contract' },
+  { label: 'Rechnung',     value: 'invoice' },
+  { label: 'Ausweis',      value: 'identity' },
+  { label: 'Versicherung', value: 'insurance' },
+  { label: 'Steuern',      value: 'tax' },
+  { label: 'Sonstiges',    value: 'other' },
+];
+
+const DOC_IMPORTANCE = {
+  dringend: { label: 'Dringend', color: '#ef4444', bg: 'rgba(239,68,68,0.1)',     border: '#ef4444' },
+  wichtig:  { label: 'Wichtig',  color: '#f97316', bg: 'rgba(249,115,22,0.1)',    border: '#f97316' },
+  normal:   { label: 'Normal',   color: '#64748b', bg: 'rgba(100,116,139,0.08)',  border: 'transparent' },
+  archiv:   { label: 'Archiv',   color: '#334155', bg: 'rgba(51,65,85,0.15)',     border: '#1e293b' },
+};
+
 function matchesMime(mime, filter) {
   if (!filter) return true;
   if (filter === 'image')   return mime?.startsWith('image/');
@@ -227,29 +252,59 @@ function matchesMime(mime, filter) {
   return true;
 }
 
+function DocPill({ active, onClick, children, onDelete }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+      <button onClick={onClick} style={{
+        padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+        whiteSpace: 'nowrap', cursor: 'pointer', transition: 'all 0.15s',
+        background: active ? '#f97316' : 'transparent',
+        color: active ? '#fff' : '#94a3b8',
+        border: active ? '1px solid #f97316' : '1px solid #2a2a2a',
+      }}>{children}</button>
+      {onDelete && (
+        <button onClick={onDelete} style={{ color: '#475569', cursor: 'pointer', background: 'none', border: 'none', lineHeight: 1, padding: '2px' }}>
+          <X size={11} />
+        </button>
+      )}
+    </div>
+  );
+}
+
 function DocumentsTab({ groupId }) {
   const qc = useQueryClient();
   const fileRef = useRef();
-  const [search, setSearch]               = useState('');
-  const [catFilter, setCatFilter]         = useState('');
-  const [subFilter, setSubFilter]         = useState('');
-  const [typeFilter, setTypeFilter]       = useState('');
-  const [showTypeDD, setShowTypeDD]       = useState(false);
-  const [showUpload, setShowUpload]       = useState(false);
-  const [showEdit, setShowEdit]           = useState(false);
-  const [editDoc, setEditDoc]             = useState(null);
-  const [selectedFile, setSelectedFile]   = useState(null);
-  const [uploadForm, setUploadForm]       = useState({ title: '', category: 'other', subcategory: '', description: '' });
-  const [editForm, setEditForm]           = useState({ title: '', category: '', description: '' });
-  const [showCatInput, setShowCatInput]   = useState(false);
-  const [newCatName, setNewCatName]       = useState('');
-  const [showSubInput, setShowSubInput]   = useState(false);
-  const [newSubName, setNewSubName]       = useState('');
-  const [uploadError, setUploadError]     = useState('');
 
-  // Unterkategorie-Filter zurücksetzen wenn Kategorie wechselt
+  // Filter + Sort States
+  const [search,           setSearch]           = useState('');
+  const [catFilter,        setCatFilter]        = useState('');
+  const [subFilter,        setSubFilter]        = useState('');
+  const [typeFilter,       setTypeFilter]       = useState('');
+  const [sortBy,           setSortBy]           = useState('importance');
+  const [importanceFilter, setImportanceFilter] = useState('');
+
+  // Modals
+  const [showUpload, setShowUpload] = useState(false);
+  const [showEdit,   setShowEdit]   = useState(false);
+  const [editDoc,    setEditDoc]    = useState(null);
+
+  // Formulare
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploadForm,   setUploadForm]   = useState({ title: '', category: 'other', subcategory: '', description: '' });
+  const [editForm,     setEditForm]     = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0 });
+  const [uploadError,  setUploadError]  = useState('');
+
+  // Neue Kat/Sub inline
+  const [showCatInput, setShowCatInput] = useState(false);
+  const [newCatName,   setNewCatName]   = useState('');
+  const [showSubInput, setShowSubInput] = useState(false);
+  const [newSubName,   setNewSubName]   = useState('');
+  const [showModalSub, setShowModalSub] = useState(false);
+  const [modalSubName, setModalSubName] = useState('');
+
   useEffect(() => { setSubFilter(''); setShowSubInput(false); }, [catFilter]);
 
+  // ── Daten ────────────────────────────────────────────────────────────────
   const { data: docs = [], isLoading } = useQuery({
     queryKey: ['group-docs', groupId, catFilter, subFilter],
     queryFn: () => {
@@ -265,37 +320,51 @@ function DocumentsTab({ groupId }) {
     queryFn: () => api.get(`/documents/categories?group_id=${groupId}`)
   });
 
-  // Alle Unterkategorien dieser Gruppe — client-seitig nach parent_category gefiltert
-  const { data: allSubs = [] } = useQuery({
-    queryKey: ['doc-subcategories', groupId],
-    queryFn: () => api.get(`/documents/subcategories?group_id=${groupId}`)
+  const { data: filterSubs = [] } = useQuery({
+    queryKey: ['doc-subcategories-filter', groupId, catFilter],
+    queryFn: () => catFilter ? api.get(`/documents/subcategories?group_id=${groupId}&parent_category=${encodeURIComponent(catFilter)}`) : Promise.resolve([]),
+    enabled: !!catFilter,
   });
 
-  // Unterkats für aktive Kategorie (Filter-Leiste)
-  const catSubs = allSubs.filter(s => s.parent_category === catFilter);
-  // Unterkats für Upload-Modal (nach gewählter upload-Kategorie)
-  const uploadCatSubs = allSubs.filter(s => s.parent_category === uploadForm.category);
+  const { data: uploadSubs = [] } = useQuery({
+    queryKey: ['doc-subcategories-upload', groupId, uploadForm.category],
+    queryFn: () => api.get(`/documents/subcategories?group_id=${groupId}&parent_category=${encodeURIComponent(uploadForm.category)}`),
+    enabled: !!uploadForm.category,
+  });
 
-  const addCatMutation = useMutation({
+  const { data: editSubs = [] } = useQuery({
+    queryKey: ['doc-subcategories-edit', groupId, editForm.category],
+    queryFn: () => editForm.category ? api.get(`/documents/subcategories?group_id=${groupId}&parent_category=${encodeURIComponent(editForm.category)}`) : Promise.resolve([]),
+    enabled: !!editForm.category,
+  });
+
+  // ── Mutationen ────────────────────────────────────────────────────────────
+  const addCatMut = useMutation({
     mutationFn: name => api.post('/documents/categories', { name, group_id: groupId }),
     onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); setNewCatName(''); setShowCatInput(false); }
   });
-  const delCatMutation = useMutation({
+  const delCatMut = useMutation({
     mutationFn: id => api.delete(`/documents/categories/${id}`),
-    onSuccess: () => qc.invalidateQueries(['doc-categories', groupId])
+    onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); if (catFilter) setCatFilter(''); }
   });
-
-  const addSubMutation = useMutation({
-    mutationFn: name => api.post('/documents/subcategories', { name, group_id: groupId, parent_category: catFilter }),
-    onSuccess: () => { qc.invalidateQueries(['doc-subcategories', groupId]); setNewSubName(''); setShowSubInput(false); }
+  const addSubMut = useMutation({
+    mutationFn: ({ name, parent }) => api.post('/documents/subcategories', { name, group_id: groupId, parent_category: parent }),
+    onSuccess: (_, { parent }) => {
+      qc.invalidateQueries(['doc-subcategories-filter', groupId, parent]);
+      qc.invalidateQueries(['doc-subcategories-upload', groupId, parent]);
+      setNewSubName(''); setShowSubInput(false);
+      setModalSubName(''); setShowModalSub(false);
+    }
   });
-  const delSubMutation = useMutation({
+  const delSubMut = useMutation({
     mutationFn: id => api.delete(`/documents/subcategories/${id}`),
-    onSuccess: () => qc.invalidateQueries(['doc-subcategories', groupId])
+    onSuccess: () => {
+      qc.invalidateQueries(['doc-subcategories-filter', groupId, catFilter]);
+      if (subFilter) setSubFilter('');
+    }
   });
 
-  // WICHTIG: kein Content-Type Header — Axios setzt die boundary automatisch für FormData
-  const uploadMutation = useMutation({
+  const uploadMut = useMutation({
     mutationFn: () => {
       const fd = new FormData();
       fd.append('file', selectedFile);
@@ -315,201 +384,277 @@ function DocumentsTab({ groupId }) {
     onError: err => setUploadError(err?.error || err?.message || 'Upload fehlgeschlagen'),
   });
 
-  const editMutation = useMutation({
+  const editMut = useMutation({
     mutationFn: ({ id, data }) => api.put(`/documents/${id}`, data),
     onSuccess: () => { qc.invalidateQueries(['group-docs', groupId]); setShowEdit(false); }
   });
 
-  const deleteMutation = useMutation({
+  const delMut = useMutation({
     mutationFn: id => api.delete(`/documents/${id}`),
     onSuccess: () => qc.invalidateQueries(['group-docs', groupId])
   });
 
-  const handleFileSelect = e => {
-    const f = e.target.files[0];
-    if (f) { setSelectedFile(f); setUploadForm(p => ({ ...p, title: f.name.replace(/\.[^.]+$/, '') })); }
-  };
+  const starMut = useMutation({
+    mutationFn: id => api.patch(`/documents/${id}/star`, {}),
+    onSuccess: () => qc.invalidateQueries(['group-docs', groupId]),
+  });
 
+  const importanceMut = useMutation({
+    mutationFn: ({ id, importance }) => api.patch(`/documents/${id}/importance`, { importance }),
+    onSuccess: () => qc.invalidateQueries(['group-docs', groupId]),
+  });
+
+  // ── Filter + Sort ─────────────────────────────────────────────────────────
   const filtered = docs.filter(d => {
     if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.filename?.toLowerCase().includes(search.toLowerCase())) return false;
-    if (!matchesMime(d.mimetype, typeFilter)) return false;
+    if (typeFilter && !matchesMime(d.mimetype, typeFilter)) return false;
     return true;
   });
 
-  const activeTypeName = DOC_FILE_TYPES.find(t => t.value === typeFilter)?.label || 'Alle Typen';
+  const sortedFiltered = [...filtered]
+    .filter(d => {
+      if (importanceFilter === 'starred') return d.starred;
+      if (importanceFilter) return d.importance === importanceFilter;
+      return true;
+    })
+    .sort((a, b) => {
+      if (sortBy === 'importance') {
+        const order = { dringend: 0, wichtig: 1, normal: 2, archiv: 3 };
+        const diff = (order[a.importance] ?? 2) - (order[b.importance] ?? 2);
+        if (diff !== 0) return diff;
+        if (b.starred !== a.starred) return b.starred - a.starred;
+        return new Date(b.created_at) - new Date(a.created_at);
+      }
+      if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at);
+      if (sortBy === 'name') return a.title.localeCompare(b.title);
+      if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
+      return 0;
+    });
 
-  // Pill-Style helper
-  const pill = (active) => ({
-    padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
-    border: 'none', cursor: 'pointer', transition: 'all 0.15s',
-    background: active ? '#f97316' : '#1e1e1e',
-    color: active ? '#fff' : '#94a3b8',
-    outline: active ? '1px solid #f97316' : '1px solid #2a2a2a',
-  });
-
-  const subPill = (active) => ({
-    padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
-    border: 'none', cursor: 'pointer',
-    background: active ? 'rgba(249,115,22,0.18)' : '#161616',
-    color: active ? '#f97316' : '#64748b',
-    outline: active ? '1px solid rgba(249,115,22,0.45)' : '1px solid #222',
-  });
+  const activeCatLabel = catFilter
+    ? (DOC_CATS.find(c => c.value === catFilter)?.label || customCats.find(c => c.name === catFilter)?.name || catFilter)
+    : null;
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
 
-      {/* ── Kopfzeile: Anzahl + Typ-Dropdown + Hochladen ── */}
+      {/* Kopfzeile */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <p className="text-sm text-slate-500">{docs.length} Dokument{docs.length !== 1 ? 'e' : ''} in dieser Gruppe</p>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-
-          {/* Dateityp-Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => setShowTypeDD(v => !v)} style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 12px', borderRadius: '10px',
-              background: typeFilter ? 'rgba(249,115,22,0.12)' : '#1e1e1e',
-              border: typeFilter ? '1px solid rgba(249,115,22,0.4)' : '1px solid #2a2a2a',
-              color: typeFilter ? '#f97316' : '#94a3b8',
-              fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap',
-            }}>
-              {activeTypeName} <span style={{ fontSize: '9px', opacity: 0.7, marginLeft: '2px' }}>▾</span>
-            </button>
-            {showTypeDD && (
-              <div style={{
-                position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 50,
-                background: '#1a1a1a', border: '1px solid #2a2a2a',
-                borderRadius: '12px', padding: '4px', minWidth: '145px',
-                boxShadow: '0 8px 24px rgba(0,0,0,0.6)',
-              }}>
-                {DOC_FILE_TYPES.map(t => (
-                  <button key={t.value} onClick={() => { setTypeFilter(t.value); setShowTypeDD(false); }} style={{
-                    display: 'block', width: '100%', textAlign: 'left',
-                    padding: '7px 12px', borderRadius: '8px', border: 'none',
-                    background: typeFilter === t.value ? 'rgba(249,115,22,0.15)' : 'transparent',
-                    color: typeFilter === t.value ? '#f97316' : '#cbd5e1',
-                    fontSize: '13px', cursor: 'pointer',
-                  }}>{t.label}</button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <button onClick={() => setShowUpload(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
-            <Upload size={15} /> Hochladen
-          </button>
-        </div>
+        <button onClick={() => { setUploadError(''); setShowUpload(true); }}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
+          <Upload size={15} /> Hochladen
+        </button>
       </div>
 
-      {/* ── Suche ── */}
+      {/* Suche */}
       <div className="relative">
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl" placeholder="Suchen..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl" placeholder="Dokument suchen..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
-      {/* ── Kategorie-Pills ── */}
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
-        {CATS.map((c, i) => (
-          <button key={c} onClick={() => setCatFilter(i === 0 ? '' : CAT_VALS[i - 1])}
-            style={pill(i === 0 ? catFilter === '' : catFilter === CAT_VALS[i - 1])}>
-            {c}
-          </button>
-        ))}
-        {customCats.map(cat => (
-          <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-            <button onClick={() => setCatFilter(cat.name)} style={pill(catFilter === cat.name)}>
-              {cat.icon} {cat.name}
-            </button>
-            <button onClick={() => delCatMutation.mutate(cat.id)} style={{ color: '#475569', cursor: 'pointer', background: 'none', border: 'none', padding: '2px' }}>
-              <X size={11} />
-            </button>
+      {/* Filter-Block */}
+      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '16px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+        {/* Dateityp */}
+        <div>
+          <p style={{ fontSize: '11px', color: '#475569', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dateityp</p>
+          <div className="tab-scroll" style={{ gap: '6px' }}>
+            {DOC_FILE_TYPES.map(t => (
+              <DocPill key={t.value} active={typeFilter === t.value} onClick={() => setTypeFilter(t.value)}>{t.label}</DocPill>
+            ))}
           </div>
-        ))}
-        {showCatInput ? (
-          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-            <input autoFocus placeholder="Kategoriename..." value={newCatName} onChange={e => setNewCatName(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMutation.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
-              style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '130px' }} />
-            <button onClick={() => { if (newCatName.trim()) addCatMutation.mutate(newCatName.trim()); }}
-              style={{ padding: '4px 10px', borderRadius: '8px', background: '#f97316', color: '#fff', border: 'none', fontSize: '12px', cursor: 'pointer' }}>+</button>
-            <button onClick={() => setShowCatInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '13px' }}>✕</button>
+        </div>
+
+        <div style={{ borderTop: '1px solid #1e1e1e' }} />
+
+        {/* Kategorie */}
+        <div>
+          <p style={{ fontSize: '11px', color: '#475569', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kategorie</p>
+          <div className="tab-scroll" style={{ gap: '6px' }}>
+            {DOC_CATS.map(c => (
+              <DocPill key={c.value} active={catFilter === c.value} onClick={() => { setCatFilter(c.value); setSubFilter(''); }}>{c.label}</DocPill>
+            ))}
+            {customCats.map(cat => (
+              <DocPill key={cat.id} active={catFilter === cat.name}
+                onClick={() => { setCatFilter(cat.name); setSubFilter(''); }}
+                onDelete={() => delCatMut.mutate(cat.id)}
+              >{cat.icon} {cat.name}</DocPill>
+            ))}
+            {showCatInput ? (
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                <input autoFocus placeholder="Name..." value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMut.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
+                  style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '110px' }} />
+                <button onClick={() => newCatName.trim() && addCatMut.mutate(newCatName.trim())} style={{ padding: '4px 8px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', cursor: 'pointer' }}>+</button>
+                <button onClick={() => setShowCatInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowCatInput(true)} style={{ padding: '5px 12px', borderRadius: '8px', fontSize: '12px', color: '#64748b', background: 'transparent', border: '1px dashed #2a2a2a', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                + Kategorie
+              </button>
+            )}
           </div>
-        ) : (
-          <button onClick={() => setShowCatInput(true)} style={{
-            padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
-            background: '#1e1e1e', border: '1px dashed #2a2a2a', color: '#64748b', cursor: 'pointer',
-          }}>+ Kategorie</button>
+        </div>
+
+        {/* Unterordner – nur wenn Kategorie gewählt */}
+        {catFilter && (
+          <>
+            <div style={{ borderTop: '1px solid #1e1e1e' }} />
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                <p style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{activeCatLabel}</p>
+                <ChevronRight size={11} style={{ color: '#475569' }} />
+                <p style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unterordner</p>
+              </div>
+              <div className="tab-scroll" style={{ gap: '6px' }}>
+                <DocPill active={subFilter === ''} onClick={() => setSubFilter('')}>Alle</DocPill>
+                {filterSubs.map(sub => (
+                  <DocPill key={sub.id} active={subFilter === sub.name}
+                    onClick={() => setSubFilter(sub.name)}
+                    onDelete={() => delSubMut.mutate(sub.id)}
+                  >{sub.name}</DocPill>
+                ))}
+                {showSubInput ? (
+                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                    <input autoFocus placeholder="Unterordner..." value={newSubName} onChange={e => setNewSubName(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && newSubName.trim()) addSubMut.mutate({ name: newSubName.trim(), parent: catFilter }); if (e.key === 'Escape') setShowSubInput(false); }}
+                      style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '130px' }} />
+                    <button onClick={() => newSubName.trim() && addSubMut.mutate({ name: newSubName.trim(), parent: catFilter })} style={{ padding: '4px 8px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', cursor: 'pointer' }}>+</button>
+                    <button onClick={() => setShowSubInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>✕</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setShowSubInput(true)} style={{ padding: '5px 12px', borderRadius: '8px', fontSize: '12px', color: '#64748b', background: 'transparent', border: '1px dashed #2a2a2a', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                    + Unterordner
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      {/* ── Unterkategorie-Pills (erscheint wenn eine Kategorie gewählt ist) ── */}
-      {catFilter && (
-        <div style={{
-          display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center',
-          paddingLeft: '14px', borderLeft: '2px solid #2a2a2a',
-        }}>
-          <span style={{ fontSize: '11px', color: '#475569', marginRight: '2px', whiteSpace: 'nowrap' }}>Unterordner:</span>
-          <button onClick={() => setSubFilter('')} style={subPill(subFilter === '')}>Alle</button>
-          {catSubs.map(sub => (
-            <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '1px' }}>
-              <button onClick={() => setSubFilter(sub.name)} style={subPill(subFilter === sub.name)}>{sub.name}</button>
-              <button onClick={() => delSubMutation.mutate(sub.id)} style={{ color: '#374151', cursor: 'pointer', background: 'none', border: 'none', padding: '2px', lineHeight: 1 }}>
-                <X size={10} />
-              </button>
-            </div>
-          ))}
-          {showSubInput ? (
-            <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-              <input autoFocus placeholder="Unterordner..." value={newSubName} onChange={e => setNewSubName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newSubName.trim()) addSubMutation.mutate(newSubName.trim()); if (e.key === 'Escape') setShowSubInput(false); }}
-                style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', background: '#161616', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '115px' }} />
-              <button onClick={() => { if (newSubName.trim()) addSubMutation.mutate(newSubName.trim()); }}
-                style={{ padding: '3px 8px', borderRadius: '6px', background: '#f97316', color: '#fff', border: 'none', fontSize: '11px', cursor: 'pointer' }}>+</button>
-              <button onClick={() => setShowSubInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '11px' }}>✕</button>
-            </div>
-          ) : (
-            <button onClick={() => setShowSubInput(true)} style={{
-              padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 500,
-              background: '#161616', border: '1px dashed #2a2a2a', color: '#475569', cursor: 'pointer',
-            }}>+ Unterordner</button>
-          )}
-        </div>
-      )}
+      {/* Sort-Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        <ArrowDownUp size={13} style={{ color: '#475569', flexShrink: 0 }} />
+        <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sortierung:</span>
+        {[
+          { key: 'importance', label: 'Wichtigkeit' },
+          { key: 'date',       label: 'Datum' },
+          { key: 'name',       label: 'Name' },
+          { key: 'size',       label: 'Größe' },
+        ].map(s => (
+          <button key={s.key} onClick={() => setSortBy(s.key)} style={{
+            padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+            cursor: 'pointer', transition: 'all 0.15s',
+            background: sortBy === s.key ? '#f97316' : 'transparent',
+            color: sortBy === s.key ? '#fff' : '#64748b',
+            border: sortBy === s.key ? '1px solid #f97316' : '1px solid #2a2a2a',
+          }}>{s.label}</button>
+        ))}
+      </div>
 
-      {/* ── Dokumenten-Liste ── */}
-      {filtered.length === 0 ? (
+      {/* Schnellfilter-Chips */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+        {[
+          { key: '',        label: 'Alle' },
+          { key: 'starred', label: 'Favoriten' },
+          { key: 'dringend',label: 'Dringend' },
+          { key: 'wichtig', label: 'Wichtig' },
+          { key: 'archiv',  label: 'Archiv' },
+        ].map(f => (
+          <button key={f.key} onClick={() => setImportanceFilter(f.key)} style={{
+            padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+            cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+            background: importanceFilter === f.key ? 'rgba(249,115,22,0.15)' : 'transparent',
+            color: importanceFilter === f.key ? '#f97316' : '#64748b',
+            border: importanceFilter === f.key ? '1px solid rgba(249,115,22,0.4)' : '1px solid #2a2a2a',
+          }}>{f.label}</button>
+        ))}
+      </div>
+
+      {/* Dokumenten-Liste */}
+      {sortedFiltered.length === 0 ? (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-12 text-center">
           <FileText size={40} className="text-slate-600 mx-auto mb-3" />
           <p className="text-slate-400">Keine Dokumente gefunden</p>
-          <button onClick={() => setShowUpload(true)} className="mt-3 text-sm text-orange-400 hover:text-orange-500">Erstes Dokument hochladen →</button>
+          <button onClick={() => setShowUpload(true)} className="mt-3 text-sm text-orange-400 hover:text-orange-500">Erstes Dokument hochladen</button>
         </div>
       ) : (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl overflow-hidden">
           <div className="divide-y divide-[#2a2a2a]">
-            {filtered.map(doc => (
-              <div key={doc.id} className="flex items-center gap-4 px-4 py-3 hover:bg-[#252525] transition-colors group">
-                <div className="w-9 h-9 bg-[#161616] rounded-lg flex items-center justify-center shrink-0">{fileIcon(doc.mimetype)}</div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                  <p className="text-xs text-slate-500">{doc.uploader_name && `${doc.uploader_name} · `}{formatSize(doc.size)} · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</p>
+            {sortedFiltered.map(doc => {
+              const imp    = doc.importance || 'normal';
+              const impCfg = DOC_IMPORTANCE[imp] || DOC_IMPORTANCE.normal;
+              return (
+                <div key={doc.id}
+                  className="flex items-center group"
+                  style={{
+                    gap: '3px',
+                    borderLeft: `3px solid ${impCfg.border}`,
+                    background: imp === 'archiv' ? 'rgba(15,23,42,0.5)' : undefined,
+                    opacity: imp === 'archiv' ? 0.6 : 1,
+                    padding: '10px 12px 10px 10px',
+                    transition: 'background 0.15s',
+                  }}>
+                  {/* File icon */}
+                  <div className="w-9 h-9 bg-[#161616] rounded-lg flex items-center justify-center shrink-0" style={{ marginRight: '6px' }}>{fileIcon(doc.mimetype)}</div>
+                  {/* Title + meta */}
+                  <div style={{ flex: 1, minWidth: 0, padding: '0 6px' }}>
+                    <p className="text-sm font-medium text-white truncate">{doc.title}</p>
+                    <p className="text-xs text-slate-500 truncate">
+                      {doc.uploader_name && <span className="hidden sm:inline">{doc.uploader_name} · </span>}
+                      {formatSize(doc.size)}
+                      <span className="hidden md:inline"> · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</span>
+                    </p>
+                  </div>
+                  {/* Category badge */}
+                  {(doc.category || doc.subcategory) && (
+                    <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 hidden sm:inline" style={{ flexShrink: 0 }}>
+                      {doc.category}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
+                    </span>
+                  )}
+                  {/* Importance badge */}
+                  {imp !== 'normal' && (
+                    <button
+                      onClick={() => {
+                        const levels = ['normal', 'wichtig', 'dringend', 'archiv'];
+                        const next = levels[(levels.indexOf(imp) + 1) % levels.length];
+                        importanceMut.mutate({ id: doc.id, importance: next });
+                      }}
+                      title="Wichtigkeit ändern"
+                      style={{
+                        padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                        background: impCfg.bg, color: impCfg.color,
+                        border: `1px solid ${impCfg.border}`,
+                        cursor: 'pointer', flexShrink: 0,
+                      }}
+                    >{impCfg.label}</button>
+                  )}
+                  {/* Star */}
+                  <button
+                    onClick={() => starMut.mutate(doc.id)}
+                    title={doc.starred ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: doc.starred ? '#f59e0b' : '#334155', display: 'flex', padding: '4px', flexShrink: 0, transition: 'color 0.15s' }}>
+                    <Star size={14} fill={doc.starred ? '#f59e0b' : 'none'} />
+                  </button>
+                  {/* Actions */}
+                  <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0 }}>
+                    <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
+                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0 }); setShowEdit(true); }}
+                      className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
+                    <button onClick={() => delMut.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                  </div>
                 </div>
-                {doc.category && <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 shrink-0">{doc.category}{doc.subcategory ? ` / ${doc.subcategory}` : ''}</span>}
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
-                  <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category, description: doc.description || '' }); setShowEdit(true); }}
-                    className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
-                  <button onClick={() => deleteMutation.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
 
-      {/* ── Upload Modal ── */}
+      {/* Upload Modal */}
       <Modal open={showUpload} onClose={() => { setShowUpload(false); setUploadError(''); }} title="Dokument hochladen">
         <div className="space-y-4">
           <div onClick={() => fileRef.current?.click()}
@@ -518,49 +663,85 @@ function DocumentsTab({ groupId }) {
             {selectedFile
               ? <p className="text-sm text-orange-400 font-medium">{selectedFile.name} ({formatSize(selectedFile.size)})</p>
               : <p className="text-sm text-slate-500">Klicken zum Auswählen <span className="text-orange-400">oder Datei ziehen</span></p>}
-            <input ref={fileRef} type="file" className="hidden" onChange={handleFileSelect} />
+            <input ref={fileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setSelectedFile(f); setUploadForm(p => ({ ...p, title: f.name.replace(/\.[^.]+$/, '') })); } }} />
           </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
             <input className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
             <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category} onChange={e => setUploadForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
-              {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i + 1]}</option>)}
-              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>)}
+              {DOC_CATS.filter(c => c.value).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
             </select></div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Unterordner <span style={{ color: '#475569', fontSize: '11px' }}>(optional)</span></label>
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label className="text-sm text-slate-400">Unterordner <span className="text-slate-600 text-xs">(optional)</span></label>
+              <button onClick={() => setShowModalSub(v => !v)} style={{ fontSize: '11px', color: '#64748b', cursor: 'pointer', background: 'none', border: 'none' }}>+ Neuer Unterordner</button>
+            </div>
+            {showModalSub && (
+              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                <input autoFocus placeholder={`Unterordner für ${DOC_CATS.find(c => c.value === uploadForm.category)?.label || uploadForm.category}...`}
+                  value={modalSubName} onChange={e => setModalSubName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && modalSubName.trim()) addSubMut.mutate({ name: modalSubName.trim(), parent: uploadForm.category }); }}
+                  style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', fontSize: '13px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none' }} />
+                <button onClick={() => modalSubName.trim() && addSubMut.mutate({ name: modalSubName.trim(), parent: uploadForm.category })}
+                  style={{ padding: '7px 12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>+</button>
+              </div>
+            )}
             <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.subcategory} onChange={e => setUploadForm(f => ({ ...f, subcategory: e.target.value }))}>
-              <option value="">— Keiner —</option>
-              {uploadCatSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
+              <option value="">— Kein Unterordner —</option>
+              {uploadSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
             </select>
           </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
-          {uploadError && <p style={{ fontSize: '13px', color: '#f87171', background: 'rgba(248,113,113,0.1)', borderRadius: '8px', padding: '8px 12px' }}>{uploadError}</p>}
+          {uploadError && <p className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{uploadError}</p>}
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => { setShowUpload(false); setUploadError(''); }} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
-            <button onClick={() => uploadMutation.mutate()} disabled={!selectedFile || uploadMutation.isPending}
+            <button onClick={() => uploadMut.mutate()} disabled={!selectedFile || uploadMut.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50">
-              {uploadMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Hochladen
+              {uploadMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Hochladen
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* ── Bearbeiten Modal ── */}
+      {/* Bearbeiten Modal */}
       <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Dokument bearbeiten" size="sm">
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
             <input className="w-full px-3.5 py-2.5 text-sm" value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} /></div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
-            <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value }))}>
-              {CAT_VALS.map((v, i) => <option key={v} value={v}>{CATS[i + 1]}</option>)}
-              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.icon} {cat.name}</option>)}
+            <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
+              {DOC_CATS.filter(c => c.value).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
             </select></div>
+          <div><label className="block text-sm text-slate-400 mb-1.5">Unterordner</label>
+            <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.subcategory} onChange={e => setEditForm(f => ({ ...f, subcategory: e.target.value }))}>
+              <option value="">— Kein Unterordner —</option>
+              {editSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
+            </select></div>
+          <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
+            <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Wichtigkeit</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {Object.entries(DOC_IMPORTANCE).map(([key, cfg]) => (
+                <button key={key}
+                  onClick={() => setEditForm(f => ({ ...f, importance: key }))}
+                  style={{
+                    padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+                    cursor: 'pointer', border: `1px solid ${editForm.importance === key ? cfg.color : '#2a2a2a'}`,
+                    background: editForm.importance === key ? cfg.bg : 'transparent',
+                    color: editForm.importance === key ? cfg.color : '#64748b',
+                  }}>{cfg.label}</button>
+              ))}
+            </div>
+          </div>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
-            <button onClick={() => editMutation.mutate({ id: editDoc.id, data: editForm })} disabled={editMutation.isPending}
+            <button onClick={() => editMut.mutate({ id: editDoc.id, data: editForm })} disabled={editMut.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50">
-              {editMutation.isPending && <Loader2 size={14} className="animate-spin" />} Speichern
+              {editMut.isPending && <Loader2 size={14} className="animate-spin" />} Speichern
             </button>
           </div>
         </div>
@@ -737,12 +918,80 @@ function CalendarTab({ groupId }) {
 // ════════════════════════════════════════════════════════════════════════════
 // TAB: MITGLIEDER (mit Rollenverwaltung)
 // ════════════════════════════════════════════════════════════════════════════
+function MemberProfileModal({ member, onClose }) {
+  if (!member) return null;
+  return (
+    <Modal open={!!member} onClose={onClose} title="Profil" size="sm">
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', padding: '8px 0 16px' }}>
+        {/* Avatar groß */}
+        {member.avatar
+          ? <img src={member.avatar} alt="" style={{ width: 96, height: 96, borderRadius: '50%', objectFit: 'cover', border: '3px solid #f97316', flexShrink: 0 }} />
+          : <div style={{
+              width: 96, height: 96, borderRadius: '50%',
+              background: 'linear-gradient(135deg, rgba(249,115,22,0.3), rgba(234,88,12,0.2))',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '36px', fontWeight: 700, color: '#f97316',
+              border: '3px solid rgba(249,115,22,0.3)',
+            }}>
+              {member.username[0].toUpperCase()}
+            </div>
+        }
+        {/* Name + Rolle */}
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: '20px', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center' }}>
+            {member.username}
+            {member.role === 'admin' && <Crown size={16} className="text-amber-400" />}
+          </p>
+          <span style={{
+            display: 'inline-block', marginTop: '6px',
+            padding: '3px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
+            background: member.role === 'admin' ? 'rgba(245,158,11,0.12)' : 'rgba(100,116,139,0.15)',
+            color: member.role === 'admin' ? '#f59e0b' : '#94a3b8',
+          }}>
+            {member.role === 'admin' ? 'Administrator' : 'Mitglied'}
+          </span>
+        </div>
+        {/* E-Mail */}
+        {member.email && (
+          <div style={{
+            width: '100%', padding: '12px 16px',
+            background: '#0f0f0f', borderRadius: '12px',
+            border: '1px solid #1e1e1e',
+            fontSize: '13px', color: '#94a3b8', textAlign: 'center',
+          }}>
+            {member.email}
+          </div>
+        )}
+        {/* Bio falls vorhanden */}
+        {member.bio && (
+          <div style={{
+            width: '100%', padding: '12px 16px',
+            background: '#0f0f0f', borderRadius: '12px',
+            border: '1px solid #1e1e1e',
+            fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5,
+          }}>
+            {member.bio}
+          </div>
+        )}
+        <button onClick={onClose} style={{
+          padding: '10px 28px', borderRadius: '12px', background: '#1e1e1e',
+          border: '1px solid #2a2a2a', color: '#94a3b8', fontSize: '14px',
+          fontWeight: 500, cursor: 'pointer', marginTop: '4px',
+        }}>Schließen</button>
+      </div>
+    </Modal>
+  );
+}
+
 function MembersTab({ group, members, isAdmin, user, removeMutation, regenCodeMutation, roleMutation, onInvite }) {
   const [copiedCode, setCopiedCode] = useState(false);
+  const [viewMember, setViewMember] = useState(null);
   const copyCode = () => { navigator.clipboard.writeText(group?.invite_code || ''); setCopiedCode(true); setTimeout(() => setCopiedCode(false), 2000); };
 
   return (
     <div className="space-y-4">
+      <MemberProfileModal member={viewMember} onClose={() => setViewMember(null)} />
+
       {group?.invite_code && (
         <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-5">
           <div className="flex items-center justify-between mb-3">
@@ -780,29 +1029,49 @@ function MembersTab({ group, members, isAdmin, user, removeMutation, regenCodeMu
         <div className="divide-y divide-[#2a2a2a]">
           {members.map(m => (
             <div key={m.id} className="flex items-center gap-4 px-5 py-3 hover:bg-[#252525] transition-colors">
-              {m.avatar
-                ? <img src={m.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                : <div className="w-10 h-10 rounded-full bg-orange-500/15 flex items-center justify-center text-sm font-bold text-orange-500">{m.username[0].toUpperCase()}</div>}
-              <div className="flex-1 min-w-0">
+              {/* Avatar – klickbar zum Profil öffnen */}
+              <button
+                onClick={() => setViewMember(m)}
+                title={`${m.username} Profil ansehen`}
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0 }}
+              >
+                {m.avatar
+                  ? <img src={m.avatar} alt="" style={{ width: 40, height: 40, borderRadius: '50%', objectFit: 'cover', display: 'block', border: '2px solid transparent', transition: 'border-color 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'} />
+                  : <div style={{
+                      width: 40, height: 40, borderRadius: '50%',
+                      background: 'rgba(249,115,22,0.15)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '14px', fontWeight: 700, color: '#f97316',
+                      border: '2px solid transparent', transition: 'border-color 0.15s',
+                    }}
+                      onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
+                      onMouseLeave={e => e.currentTarget.style.borderColor = 'transparent'}
+                    >{m.username[0].toUpperCase()}</div>
+                }
+              </button>
+              {/* Name + Email – auch klickbar */}
+              <button
+                onClick={() => setViewMember(m)}
+                style={{ flex: 1, minWidth: 0, textAlign: 'left', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>
                 <p className="text-sm font-medium text-white flex items-center gap-1.5">
                   {m.username}
                   {m.role === 'admin' && <Crown size={12} className="text-amber-400" />}
                 </p>
                 <p className="text-xs text-slate-500">{m.email}</p>
-              </div>
+              </button>
               <span className={`text-xs px-2.5 py-1 rounded-lg font-medium ${m.role === 'admin' ? 'bg-amber-500/10 text-amber-400' : 'bg-slate-700/50 text-slate-400'}`}>
                 {m.role === 'admin' ? 'Admin' : 'Mitglied'}
               </span>
               {m.id !== user?.id && isAdmin && (
                 <div className="flex gap-1">
-                  {/* Rolle ändern */}
                   <button
                     onClick={() => roleMutation.mutate({ groupId: group.id, userId: m.id, role: m.role === 'admin' ? 'member' : 'admin' })}
                     title={m.role === 'admin' ? 'Zum Mitglied herabstufen' : 'Zum Admin befördern'}
                     className={`p-2 rounded-lg transition-colors ${m.role === 'admin' ? 'text-amber-400 hover:bg-amber-500/10' : 'text-slate-500 hover:text-amber-400 hover:bg-amber-500/10'}`}>
                     <Crown size={14} />
                   </button>
-                  {/* Entfernen */}
                   <button onClick={() => removeMutation.mutate({ groupId: group.id, userId: m.id })}
                     className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors">
                     <UserMinus size={15} />

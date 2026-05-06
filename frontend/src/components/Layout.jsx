@@ -5,6 +5,7 @@ import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import { SocketManager, NotificationPanel, ToastContainer, NotificationBell } from './Notifications';
 import useAuth from '../stores/auth';
+import useUpdate from '../stores/update';
 import api from '../api/client';
 
 /* ── Seiten-Titel ────────────────────────────────────────────────── */
@@ -44,6 +45,7 @@ function UpdateBanner() {
   const [show, setShow] = useState(false);
   const [info, setInfo] = useState(null);
   const deployedRef = useRef(null);
+  const { setUpdate, clearUpdate } = useUpdate();
 
   useEffect(() => {
     const check = async () => {
@@ -54,6 +56,7 @@ function UpdateBanner() {
         } else if (deployedRef.current !== data.deployedAt) {
           setInfo(data);
           setShow(true);
+          setUpdate(data);
         }
       } catch {}
     };
@@ -64,7 +67,7 @@ function UpdateBanner() {
       clearInterval(interval);
       window.removeEventListener('socket:reconnect', check);
     };
-  }, []);
+  }, [setUpdate]);
 
   if (!show) return null;
 
@@ -97,7 +100,7 @@ function UpdateBanner() {
         }}>
         <RefreshCw size={12} /> Jetzt aktualisieren
       </button>
-      <button onClick={() => setShow(false)}
+      <button onClick={() => { setShow(false); clearUpdate(); }}
         style={{ background: 'none', border: 'none', color: '#475569', cursor: 'pointer', padding: '4px', flexShrink: 0, fontSize: '16px', lineHeight: 1 }}>
         ✕
       </button>
