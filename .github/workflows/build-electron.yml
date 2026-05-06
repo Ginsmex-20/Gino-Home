@@ -38,37 +38,11 @@ jobs:
             dist-app/Gino-Home-Portable-*.exe
           retention-days: 90
 
-  # ── Mac .dmg ────────────────────────────────────────────────────────────────
-  build-mac:
-    runs-on: macos-13
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Mac DMG (nur x64)
-        run: npx electron-builder --mac --x64
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_IDENTITY_AUTO_DISCOVERY: false
-
-      - name: Upload Mac artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Gino-Home-Mac
-          path: dist-app/Gino-Home-*.dmg
-          retention-days: 90
-
-  # ── GitHub Release erstellen (auch wenn Mac fehlt) ──────────────────────────
+  # ── GitHub Release erstellen ────────────────────────────────────────────────
+  # Mac wird lokal auf eigenem Mac gebaut und manuell hochgeladen
   release:
-    needs: [build-windows, build-mac]
-    if: always() && needs.build-windows.result == 'success'
+    needs: [build-windows]
+    if: needs.build-windows.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -77,13 +51,6 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: Gino-Home-Windows
-          path: ./release-files
-
-      - name: Download Mac artifacts (falls vorhanden)
-        if: needs.build-mac.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          name: Gino-Home-Mac
           path: ./release-files
 
       - name: Create GitHub Release
