@@ -1,6 +1,18 @@
 {
-  "version": "1.0.1",
+  "version": "1.0.2",
   "changelog": [
+    {
+      "version": "1.0.2",
+      "date": "2026-05-06",
+      "title": "Professionelles Dokumentensystem",
+      "items": [
+        "Gruppen-Dokumente jetzt identisch mit persönlichen Dokumenten",
+        "Wichtigkeitssystem: Dringend, Wichtig, Normal, Archiv",
+        "Stern-Favoriten und Sortierung nach Wichtigkeit, Datum, Name, Größe",
+        "Updates-Kategorie in Sidebar mit grünem Pulsing-Dot bei neuen Updates",
+        "Mitglieder-Profilansicht: Klick auf Avatar öffnet Profil-Modal"
+      ]
+    },
     {
       "version": "1.0.1",
       "date": "2026-05-06",
@@ -16,10 +28,10 @@
       "date": "2026-04-30",
       "title": "Erster Release",
       "items": [
-        "Dokumente, Finanzen, Aufgaben & Kalender",
+        "Dokumente, Finanzen, Aufgaben und Kalender",
         "Gruppen mit geteiltem Zugriff für die Familie",
         "Google OAuth Login",
-        "Electron Desktop App (Windows & Mac)",
+        "Electron Desktop App (Windows und Mac)",
         "Sicherer Zugriff über Cloudflare Tunnel (HTTPS)"
       ]
     }
