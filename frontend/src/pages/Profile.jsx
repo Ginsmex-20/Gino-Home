@@ -10,7 +10,6 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import api from '../api/client';
 import useAuth from '../stores/auth';
-import { useQuery } from '@tanstack/react-query';
 import ConfirmDialog from '../components/ConfirmDialog';
 
 /* ── Kleine Hilfskomponenten ──────────────────────────────────────────── */
