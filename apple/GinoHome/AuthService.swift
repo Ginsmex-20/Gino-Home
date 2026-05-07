@@ -4,6 +4,8 @@ import WebKit
 
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 enum AuthBridge {
@@ -246,6 +248,11 @@ private extension AuthService {
         #if canImport(UIKit)
         if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
            let window = scene.windows.first {
+            return window
+        }
+        return ASPresentationAnchor()
+        #elseif canImport(AppKit)
+        if let window = NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first {
             return window
         }
         return ASPresentationAnchor()

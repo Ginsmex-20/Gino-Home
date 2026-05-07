@@ -4,6 +4,8 @@ import Combine
 
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 final class WebCoordinator: NSObject, ObservableObject {
@@ -88,6 +90,8 @@ extension WebCoordinator: WKNavigationDelegate {
         if scheme == "tel" || scheme == "mailto" || scheme == "sms" {
             #if canImport(UIKit)
             UIApplication.shared.open(url)
+            #elseif canImport(AppKit)
+            NSWorkspace.shared.open(url)
             #endif
             decisionHandler(.cancel)
             return
