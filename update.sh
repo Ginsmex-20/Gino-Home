@@ -30,8 +30,17 @@ git pull
 echo -e "${GREEN}✓ Code aktuell${NC}"
 echo ""
 
-# ── 2. Docker neu bauen und starten ─────────────────────────────────
-echo -e "${YELLOW}▶ Docker Container neu bauen...${NC}"
+# ── 2. Frontend zwangsweise neu bauen (Vite-Bundle mit neuem Hash) ──
+# BuildKit erkennt manchmal Source-Aenderungen nicht zuverlaessig,
+# deshalb fuer Frontend immer --no-cache. Backend/tunnel/certbot
+# bleiben mit Cache (schnell), die haben i.d.R. keine Build-Probleme.
+echo -e "${YELLOW}▶ Frontend Container neu bauen (--no-cache)...${NC}"
+docker compose build --no-cache frontend
+echo -e "${GREEN}✓ Frontend Image frisch${NC}"
+echo ""
+
+# ── 3. Container starten ─────────────────────────────────────────────
+echo -e "${YELLOW}▶ Container starten...${NC}"
 docker compose up --build -d
 echo -e "${GREEN}✓ Container laufen${NC}"
 echo ""
