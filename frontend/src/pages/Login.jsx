@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useGoogleLogin } from '@react-oauth/google';
@@ -16,13 +16,38 @@ function GoogleLogo() {
   );
 }
 
+function AppleLogo() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M17.05 12.04c-.03-3.05 2.49-4.51 2.6-4.58-1.42-2.07-3.62-2.36-4.4-2.39-1.87-.19-3.66 1.1-4.61 1.1-.97 0-2.42-1.08-3.99-1.05-2.03.03-3.93 1.19-4.97 3-2.13 3.69-.54 9.13 1.51 12.13 1.01 1.47 2.21 3.11 3.78 3.05 1.52-.06 2.09-.98 3.93-.98s2.36.98 3.97.95c1.64-.03 2.68-1.49 3.69-2.97 1.16-1.7 1.64-3.36 1.66-3.45-.04-.02-3.18-1.22-3.21-4.81zM14.05 3.31c.84-1.02 1.41-2.43 1.25-3.84-1.21.05-2.68.81-3.55 1.82-.78.91-1.46 2.36-1.28 3.74 1.35.1 2.73-.69 3.58-1.72z"/>
+    </svg>
+  );
+}
+
+const isNativeIOS = () =>
+  typeof window !== 'undefined' &&
+  !!window.GinoHomeNative &&
+  window.GinoHomeNative.platform === 'ios';
+
 export default function Login() {
   const [form, setForm]       = useState({ email: '', password: '' });
   const [error, setError]     = useState('');
   const [loading, setLoading] = useState(false);
   const [gLoading, setGLoading] = useState(false);
-  const { login, loginWithGoogle } = useAuth();
+  const [aLoading, setALoading] = useState(false);
+  const [native, setNative]     = useState(isNativeIOS());
+  const { login, loginWithGoogle, loginWithApple } = useAuth();
   const navigate = useNavigate();
+
+  // Bridge wird per WKUserScript bei document-start injiziert — kann
+  // bei einer SPA-Navigation aber kurz nach dem ersten Render verfügbar werden.
+  useEffect(() => {
+    if (native) return;
+    const t = setInterval(() => {
+      if (isNativeIOS()) { setNative(true); clearInterval(t); }
+    }, 200);
+    return () => clearInterval(t);
+  }, [native]);
 
   const handleSubmit = async e => {
     e.preventDefault();
@@ -35,7 +60,7 @@ export default function Login() {
     } finally { setLoading(false); }
   };
 
-  const googleLogin = useGoogleLogin({
+  const webGoogleLogin = useGoogleLogin({
     onSuccess: async tokenResponse => {
       setGLoading(true); setError('');
       try {
@@ -47,6 +72,43 @@ export default function Login() {
     },
     onError: () => setError('Google-Anmeldung fehlgeschlagen'),
   });
+
+  const handleGoogle = async () => {
+    setError('');
+    if (native) {
+      setGLoading(true);
+      try {
+        const res = await window.GinoHomeNative.signIn('google');
+        if (!res?.accessToken) throw new Error('Kein Token erhalten');
+        await loginWithGoogle(res.accessToken);
+        navigate('/');
+      } catch (err) {
+        if (err?.message !== 'cancelled') {
+          setError(err?.error || err?.message || 'Google-Anmeldung fehlgeschlagen');
+        }
+      } finally { setGLoading(false); }
+    } else {
+      webGoogleLogin();
+    }
+  };
+
+  const handleApple = async () => {
+    if (!native) {
+      setError('Apple-Anmeldung ist aktuell nur in der iOS-App verfügbar.');
+      return;
+    }
+    setError(''); setALoading(true);
+    try {
+      const res = await window.GinoHomeNative.signIn('apple');
+      if (!res?.identityToken) throw new Error('Kein Apple-Token erhalten');
+      await loginWithApple(res.identityToken, res.user);
+      navigate('/');
+    } catch (err) {
+      if (err?.message !== 'cancelled') {
+        setError(err?.error || err?.message || 'Apple-Anmeldung fehlgeschlagen');
+      }
+    } finally { setALoading(false); }
+  };
 
   return (
     <div style={{
@@ -77,21 +139,42 @@ export default function Login() {
 
           {/* Google Button */}
           <button
-            onClick={() => googleLogin()}
-            disabled={gLoading}
+            onClick={handleGoogle}
+            disabled={gLoading || aLoading}
             style={{
               width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              gap: '10px', padding: '11px', marginBottom: '16px',
+              gap: '10px', padding: '11px', marginBottom: '10px',
               background: '#fff', color: '#1f1f1f', border: 'none',
               borderRadius: '12px', fontWeight: 600, fontSize: '14px',
-              cursor: gLoading ? 'not-allowed' : 'pointer',
-              opacity: gLoading ? 0.7 : 1,
+              cursor: (gLoading || aLoading) ? 'not-allowed' : 'pointer',
+              opacity: (gLoading || aLoading) ? 0.7 : 1,
               transition: 'background 0.2s',
             }}
           >
             {gLoading ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <GoogleLogo />}
             Mit Google anmelden
           </button>
+
+          {/* Apple Button — nur in der iOS-App sichtbar */}
+          {native && (
+            <button
+              onClick={handleApple}
+              disabled={gLoading || aLoading}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: '10px', padding: '11px', marginBottom: '16px',
+                background: '#000', color: '#fff', border: '1px solid #2a2a2a',
+                borderRadius: '12px', fontWeight: 600, fontSize: '14px',
+                cursor: (gLoading || aLoading) ? 'not-allowed' : 'pointer',
+                opacity: (gLoading || aLoading) ? 0.7 : 1,
+              }}
+            >
+              {aLoading ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <AppleLogo />}
+              Mit Apple anmelden
+            </button>
+          )}
+
+          {!native && <div style={{ height: '6px' }} />}
 
           {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>

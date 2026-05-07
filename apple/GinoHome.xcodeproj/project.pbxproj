@@ -12,8 +12,10 @@
 		000000000000000000000015 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000014 /* ContentView.swift */; };
 		000000000000000000000017 /* WebCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000016 /* WebCoordinator.swift */; };
 		000000000000000000000019 /* WebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000018 /* WebView.swift */; };
-		00000000000000000000001B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001A /* Assets.xcassets */; };
-		00000000000000000000001F /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001E /* WebKit.framework */; };
+		00000000000000000000001B /* AuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001A /* AuthService.swift */; };
+		00000000000000000000001D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 00000000000000000000001C /* Assets.xcassets */; };
+		000000000000000000000021 /* WebKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000020 /* WebKit.framework */; };
+		000000000000000000000023 /* AuthenticationServices.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 000000000000000000000022 /* AuthenticationServices.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,10 +25,12 @@
 		000000000000000000000014 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		000000000000000000000016 /* WebCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebCoordinator.swift; sourceTree = "<group>"; };
 		000000000000000000000018 /* WebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebView.swift; sourceTree = "<group>"; };
-		00000000000000000000001A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		00000000000000000000001C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		00000000000000000000001D /* GinoHome.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GinoHome.entitlements; sourceTree = "<group>"; };
-		00000000000000000000001E /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		00000000000000000000001A /* AuthService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthService.swift; sourceTree = "<group>"; };
+		00000000000000000000001C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		00000000000000000000001E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		00000000000000000000001F /* GinoHome.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GinoHome.entitlements; sourceTree = "<group>"; };
+		000000000000000000000020 /* WebKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; };
+		000000000000000000000022 /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -34,7 +38,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				00000000000000000000001F /* WebKit.framework in Frameworks */,
+				000000000000000000000021 /* WebKit.framework in Frameworks */,
+				000000000000000000000023 /* AuthenticationServices.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,9 +70,10 @@
 				000000000000000000000014 /* ContentView.swift */,
 				000000000000000000000016 /* WebCoordinator.swift */,
 				000000000000000000000018 /* WebView.swift */,
-				00000000000000000000001A /* Assets.xcassets */,
-				00000000000000000000001C /* Info.plist */,
-				00000000000000000000001D /* GinoHome.entitlements */,
+				00000000000000000000001A /* AuthService.swift */,
+				00000000000000000000001C /* Assets.xcassets */,
+				00000000000000000000001E /* Info.plist */,
+				00000000000000000000001F /* GinoHome.entitlements */,
 			);
 			path = GinoHome;
 			sourceTree = "<group>";
@@ -130,7 +136,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				00000000000000000000001B /* Assets.xcassets in Resources */,
+				00000000000000000000001D /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -146,6 +152,7 @@
 				000000000000000000000015 /* ContentView.swift in Sources */,
 				000000000000000000000017 /* WebCoordinator.swift in Sources */,
 				000000000000000000000019 /* WebView.swift in Sources */,
+				00000000000000000000001B /* AuthService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

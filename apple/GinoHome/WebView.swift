@@ -8,7 +8,18 @@ struct WebView: UIViewRepresentable {
     @ObservedObject var coordinator: WebCoordinator
 
     func makeUIView(context: Context) -> WKWebView {
+        let userController = WKUserContentController()
+        userController.add(context.coordinator, name: AuthBridge.messageHandlerName)
+
+        let bridgeScript = WKUserScript(
+            source: AuthBridge.injectedJS,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+        userController.addUserScript(bridgeScript)
+
         let config = WKWebViewConfiguration()
+        config.userContentController = userController
         config.websiteDataStore = .default()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
@@ -23,21 +34,18 @@ struct WebView: UIViewRepresentable {
         webView.backgroundColor = .black
         webView.scrollView.backgroundColor = .black
 
-        if let existing = webView.value(forKey: "userAgent") as? String, !existing.isEmpty {
-            webView.customUserAgent = existing + " " + AppConfig.userAgentSuffix
-        } else {
-            webView.customUserAgent = AppConfig.userAgentSuffix
-        }
+        let safariUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
+            + "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+        webView.customUserAgent = safariUA
 
         let refresh = UIRefreshControl()
         refresh.tintColor = .white
         refresh.addTarget(
             context.coordinator,
-            action: #selector(WebView.RefreshHandler.refresh(_:)),
+            action: #selector(WebCoordinator.handleRefresh(_:)),
             for: .valueChanged
         )
         webView.scrollView.refreshControl = refresh
-        context.coordinator.webView = webView
 
         coordinator.attach(webView)
         return webView
@@ -45,19 +53,8 @@ struct WebView: UIViewRepresentable {
 
     func updateUIView(_ uiView: WKWebView, context: Context) {}
 
-    func makeCoordinator() -> RefreshHandler {
-        RefreshHandler()
-    }
-
-    final class RefreshHandler {
-        weak var webView: WKWebView?
-
-        @objc func refresh(_ sender: UIRefreshControl) {
-            webView?.reload()
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-                sender.endRefreshing()
-            }
-        }
+    func makeCoordinator() -> WebCoordinator {
+        coordinator
     }
 }
 #endif

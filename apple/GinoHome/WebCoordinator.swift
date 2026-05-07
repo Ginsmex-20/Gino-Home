@@ -2,15 +2,21 @@ import Foundation
 import WebKit
 import Combine
 
+#if canImport(UIKit)
+import UIKit
+#endif
+
 final class WebCoordinator: NSObject, ObservableObject {
     @Published var isLoading: Bool = true
     @Published var didLoadOnce: Bool = false
     @Published var lastError: Error?
 
     weak var webView: WKWebView?
+    private let authService = AuthService()
 
     func attach(_ webView: WKWebView) {
         self.webView = webView
+        authService.webView = webView
         load()
     }
 
@@ -31,6 +37,15 @@ final class WebCoordinator: NSObject, ObservableObject {
             webView.reload()
         }
     }
+
+    #if canImport(UIKit)
+    @objc func handleRefresh(_ sender: UIRefreshControl) {
+        webView?.reload()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            sender.endRefreshing()
+        }
+    }
+    #endif
 }
 
 extension WebCoordinator: WKNavigationDelegate {
@@ -93,5 +108,18 @@ extension WebCoordinator: WKUIDelegate {
             webView.load(URLRequest(url: url))
         }
         return nil
+    }
+}
+
+extension WebCoordinator: WKScriptMessageHandler {
+    func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard
+            message.name == AuthBridge.messageHandlerName,
+            let body = message.body as? [String: Any]
+        else { return }
+        authService.handleMessage(body)
     }
 }

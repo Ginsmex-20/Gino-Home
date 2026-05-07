@@ -64,9 +64,50 @@ Aktuell:
 - Offline/Error-Fallback
 - Persistente Cookies (Login bleibt erhalten)
 - `tel:`, `mailto:`, `sms:` Links öffnen native Apps
-- Custom User Agent: `… GinoHome-iOS/1.0`
+- Safari-kompatibler User Agent (Google OAuth funktioniert nicht in WKWebView ohne Bridge)
+- **Native Auth Bridge** (`AuthService.swift`):
+  - Google Sign In via `ASWebAuthenticationSession` (echtes Safari)
+  - Sign in with Apple via `AuthorizationServices.framework`
+  - JS-API: `await window.GinoHomeNative.signIn('google' | 'apple')`
 
-Geplant (Native-Schicht erweitern → schrittweise je App-Store-Update):
+### Native Auth Bridge — Setup-Schritte (einmalig)
+
+1. **Apple Developer Console** ([developer.apple.com/account](https://developer.apple.com/account/resources/identifiers/list))
+   - App-ID `de.gino-home.app` öffnen
+   - Capability **"Sign in with Apple"** aktivieren → Save
+   - Provisioning Profile neu erstellen (Xcode macht das automatisch beim nächsten Build mit echtem Gerät)
+
+2. **Google Cloud Console** ([console.cloud.google.com](https://console.cloud.google.com/apis/credentials))
+   - OAuth 2.0 Client ID `242636055004-oh3s00m3523bvmoqhh5upm32nnclab9s` öffnen
+   - Bei "Authorized redirect URIs" hinzufügen:
+     ```
+     https://ginohome.de/auth/native-callback.html
+     ```
+   - Save
+
+3. **Frontend deployen** (TrueNAS) — der neue Login-Screen mit Apple-Button kommt über den normalen Update-Flow.
+
+### Wie die Bridge funktioniert
+
+```
+React Login.jsx
+   └─ window.GinoHomeNative.signIn('google')
+       └─ window.webkit.messageHandlers.nativeAuth.postMessage({...})
+           └─ AuthService.handleMessage  (Swift)
+               ├─ google → ASWebAuthenticationSession
+               │    └─ Safari → google.com → redirect
+               │        → https://ginohome.de/auth/native-callback.html#access_token=…
+               │        → de.gino-home.app://oauth/google#access_token=…
+               │        → Session-Callback liefert URL zurück
+               └─ apple → ASAuthorizationAppleIDProvider
+                    └─ Native Apple-Sheet → identityToken
+   ← webView.evaluateJavaScript("window.handleNativeAuthResult({...})")
+   ← Promise resolved → loginWithGoogle(token) bzw. loginWithApple(idToken, user)
+   ← POST /api/auth/google bzw. /api/auth/apple
+   ← JWT in localStorage → eingeloggt
+```
+
+## Geplant
 - [ ] Face ID / Touch ID Gate vor WebView
 - [ ] Push Notifications via APNs (Bridge zum Socket.io-Backend)
 - [ ] Share Extension

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anmeldung wird abgeschlossen…</title>
+  <style>
+    html, body { margin: 0; padding: 0; height: 100%; background: #161616; color: #fff; font-family: -apple-system, system-ui, sans-serif; }
+    .wrap { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 12px; padding: 16px; text-align: center; }
+    .spinner { width: 28px; height: 28px; border: 3px solid rgba(255,255,255,0.2); border-top-color: #f97316; border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    p { margin: 0; opacity: 0.7; font-size: 14px; }
+    a { color: #f97316; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="spinner"></div>
+    <p id="msg">Anmeldung wird abgeschlossen…</p>
+  </div>
+  <script>
+    (function() {
+      // Google liefert access_token im URL-Fragment (#access_token=...&...)
+      // Wir leiten alles 1:1 an das native iOS-Schema weiter, damit
+      // ASWebAuthenticationSession den Callback abfangen kann.
+      var fragment = window.location.hash.replace(/^#/, '');
+      var query    = window.location.search.replace(/^\?/, '');
+      var payload  = fragment || query;
+      if (!payload) {
+        document.getElementById('msg').textContent = 'Keine Anmelde-Antwort empfangen.';
+        return;
+      }
+      var redirect = 'de.gino-home.app://oauth/google#' + payload;
+      window.location.replace(redirect);
+      setTimeout(function() {
+        document.getElementById('msg').innerHTML =
+          'App öffnet sich nicht? <a href="' + redirect + '">Manuell zur App zurück</a>';
+      }, 1500);
+    })();
+  </script>
+</body>
+</html>

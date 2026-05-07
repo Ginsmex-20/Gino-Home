@@ -33,6 +33,7 @@ SOURCES = [
     (uid(), uid(), "ContentView.swift",      "ContentView.swift"),
     (uid(), uid(), "WebCoordinator.swift",   "WebCoordinator.swift"),
     (uid(), uid(), "WebView.swift",          "WebView.swift"),
+    (uid(), uid(), "AuthService.swift",      "AuthService.swift"),
 ]
 
 ASSETS_REF       = uid(); ASSETS_BF        = uid()
@@ -40,6 +41,7 @@ INFOPLIST_REF    = uid()
 ENTITLEMENTS_REF = uid()
 
 WEBKIT_REF       = uid(); WEBKIT_BF        = uid()
+AUTH_SVC_REF     = uid(); AUTH_SVC_BF      = uid()
 
 BUNDLE_ID                  = "de.gino-home.app"
 PRODUCT_NAME               = "GinoHome"
@@ -67,6 +69,7 @@ def pbx():
         w(f"\t\t{bf} /* {name} in Sources */ = {{isa = PBXBuildFile; fileRef = {ref} /* {name} */; }};")
     w(f"\t\t{ASSETS_BF} /* Assets.xcassets in Resources */ = {{isa = PBXBuildFile; fileRef = {ASSETS_REF} /* Assets.xcassets */; }};")
     w(f"\t\t{WEBKIT_BF} /* WebKit.framework in Frameworks */ = {{isa = PBXBuildFile; fileRef = {WEBKIT_REF} /* WebKit.framework */; }};")
+    w(f"\t\t{AUTH_SVC_BF} /* AuthenticationServices.framework in Frameworks */ = {{isa = PBXBuildFile; fileRef = {AUTH_SVC_REF} /* AuthenticationServices.framework */; }};")
     w("/* End PBXBuildFile section */")
     w()
 
@@ -78,6 +81,7 @@ def pbx():
     w(f"\t\t{INFOPLIST_REF} /* Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = \"<group>\"; }};")
     w(f"\t\t{ENTITLEMENTS_REF} /* GinoHome.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = GinoHome.entitlements; sourceTree = \"<group>\"; }};")
     w(f"\t\t{WEBKIT_REF} /* WebKit.framework */ = {{isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WebKit.framework; path = System/Library/Frameworks/WebKit.framework; sourceTree = SDKROOT; }};")
+    w(f"\t\t{AUTH_SVC_REF} /* AuthenticationServices.framework */ = {{isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; }};")
     w("/* End PBXFileReference section */")
     w()
 
@@ -87,6 +91,7 @@ def pbx():
     w(f"\t\t\tbuildActionMask = 2147483647;")
     w(f"\t\t\tfiles = (")
     w(f"\t\t\t\t{WEBKIT_BF} /* WebKit.framework in Frameworks */,")
+    w(f"\t\t\t\t{AUTH_SVC_BF} /* AuthenticationServices.framework in Frameworks */,")
     w(f"\t\t\t);")
     w(f"\t\t\trunOnlyForDeploymentPostprocessing = 0;")
     w(f"\t\t}};")
