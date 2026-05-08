@@ -51,6 +51,7 @@ function VaultEntry({ entry, onEdit, onDelete }) {
     other:        'text-slate-400 bg-slate-700/60',
   };
   const catLabels = { subscription: 'Abo', account: 'Account', email: 'E-Mail', other: 'Sonstiges' };
+  const isEmailEntry = entry.category === 'email';
   const hrefUrl = entry.website ? (entry.website.startsWith('http') ? entry.website : `https://${entry.website}`) : '#';
 
   return (
@@ -61,13 +62,23 @@ function VaultEntry({ entry, onEdit, onDelete }) {
             <KeyRound size={16} className="text-orange-500" />
           </div>
           <div className="min-w-0">
-            <p className="font-medium text-white truncate">{entry.title}</p>
-            {entry.website && (
-              <a href={hrefUrl} target="_blank" rel="noreferrer"
-                className="text-xs text-orange-500/70 hover:text-orange-500 flex items-center gap-1 mt-0.5 max-w-[180px]">
-                <span className="truncate">{displayDomain(entry.website)}</span>
-                <ExternalLink size={10} className="shrink-0" />
-              </a>
+            {/* E-Mail-Einträge: Anbieter als Titel, Adresse darunter */}
+            {isEmailEntry ? (
+              <>
+                <p className="font-medium text-white truncate">{entry.website || 'E-Mail'}</p>
+                <p className="text-xs text-slate-500 mt-0.5 truncate">{entry.email}</p>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-white truncate">{entry.title}</p>
+                {entry.website && (
+                  <a href={hrefUrl} target="_blank" rel="noreferrer"
+                    className="text-xs text-orange-500/70 hover:text-orange-500 flex items-center gap-1 mt-0.5 max-w-[180px]">
+                    <span className="truncate">{displayDomain(entry.website)}</span>
+                    <ExternalLink size={10} className="shrink-0" />
+                  </a>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -90,7 +101,8 @@ function VaultEntry({ entry, onEdit, onDelete }) {
             </button>
           </div>
         )}
-        {entry.username && (
+        {/* Benutzername nur bei Nicht-E-Mail-Einträgen */}
+        {!isEmailEntry && entry.username && (
           <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-bg rounded-lg">
             <span className="text-xs text-slate-500 shrink-0 w-20">Benutzername</span>
             <span className="text-xs text-slate-300 flex-1 text-right truncate">{entry.username}</span>
@@ -142,6 +154,8 @@ export default function Vault() {
   const openEdit = entry => { setEditing(entry); setForm({ ...entry }); setShowModal(true); };
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
 
+  const isEmailForm = form.category === 'email';
+
   const filtered = entries.filter(e => !search || e.title.toLowerCase().includes(search.toLowerCase()) || e.email?.toLowerCase().includes(search.toLowerCase()) || e.website?.toLowerCase().includes(search.toLowerCase()));
 
   return (
@@ -189,27 +203,79 @@ export default function Vault() {
 
       <Modal open={showModal} onClose={() => { setShowModal(false); setEditing(null); }} title={editing ? 'Eintrag bearbeiten' : 'Neuer Eintrag'}>
         <div className="space-y-4">
-          <div><label className="block text-sm text-slate-400 mb-1.5">Titel *</label><input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Netflix, Google..." value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm text-slate-400 mb-1.5">E-Mail</label><input type="email" className="w-full px-3.5 py-2.5 text-sm" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} /></div>
-            <div><label className="block text-sm text-slate-400 mb-1.5">Benutzername</label><input className="w-full px-3.5 py-2.5 text-sm" value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} /></div>
+          {/* Kategorie immer oben */}
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
+            <select className="w-full px-3.5 py-2.5 text-sm" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
+              <option value="subscription">Abonnement</option>
+              <option value="account">Account</option>
+              <option value="email">E-Mail</option>
+              <option value="other">Sonstiges</option>
+            </select>
           </div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Passwort</label><input type="password" className="w-full px-3.5 py-2.5 text-sm font-mono" placeholder="Passwort eingeben" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} /></div>
-          <div className="grid grid-cols-2 gap-4">
-            <div><label className="block text-sm text-slate-400 mb-1.5">Website</label><input className="w-full px-3.5 py-2.5 text-sm" placeholder="netflix.com" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} /></div>
-            <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
-              <select className="w-full px-3.5 py-2.5 text-sm" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
-                <option value="subscription">Abonnement</option>
-                <option value="account">Account</option>
-                <option value="email">E-Mail</option>
-                <option value="other">Sonstiges</option>
-              </select>
-            </div>
+
+          {isEmailForm ? (
+            /* ── E-Mail-Modus ──────────────────────────────────────── */
+            <>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">E-Mail-Adresse *</label>
+                <input type="email" className="w-full px-3.5 py-2.5 text-sm" placeholder="beispiel@gmail.com"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value, title: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Passwort</label>
+                <input type="password" className="w-full px-3.5 py-2.5 text-sm font-mono" placeholder="Passwort eingeben"
+                  value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Anbieter</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Gmail, Outlook, iCloud..."
+                  value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} />
+              </div>
+            </>
+          ) : (
+            /* ── Standard-Modus ────────────────────────────────────── */
+            <>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Titel *</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Netflix, Google..."
+                  value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1.5">E-Mail</label>
+                  <input type="email" className="w-full px-3.5 py-2.5 text-sm"
+                    value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1.5">Benutzername</label>
+                  <input className="w-full px-3.5 py-2.5 text-sm"
+                    value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Passwort</label>
+                <input type="password" className="w-full px-3.5 py-2.5 text-sm font-mono" placeholder="Passwort eingeben"
+                  value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Website</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="netflix.com"
+                  value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} />
+              </div>
+            </>
+          )}
+
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Notizen</label>
+            <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2}
+              value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
           </div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Notizen</label><textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} /></div>
           <div className="flex justify-end gap-2 pt-1">
             <button onClick={() => { setShowModal(false); setEditing(null); }} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
-            <button onClick={() => saveMutation.mutate(form)} disabled={!form.title || saveMutation.isPending}
+            <button onClick={() => saveMutation.mutate(form)}
+              disabled={(isEmailForm ? !form.email : !form.title) || saveMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50 shadow-md shadow-orange-500/20">
               {saveMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : null} Speichern
             </button>
