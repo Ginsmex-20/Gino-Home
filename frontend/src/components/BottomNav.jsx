@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, CheckSquare, Euro, Calendar, Users } from 'lucide-react';
+import { LayoutDashboard, CheckSquare, Euro, Calendar, Menu } from 'lucide-react';
 
 const TABS = [
   { to: '/',         icon: LayoutDashboard, label: 'Home',     exact: true  },
   { to: '/tasks',    icon: CheckSquare,     label: 'Aufgaben', exact: false },
   { to: '/finance',  icon: Euro,            label: 'Finanzen', exact: false },
   { to: '/calendar', icon: Calendar,        label: 'Kalender', exact: false },
-  { to: '/groups',   icon: Users,           label: 'Gruppen',  exact: false },
+  { to: '/mehr',     icon: Menu,            label: 'Mehr',     exact: false },
 ];
 
 export default function BottomNav() {

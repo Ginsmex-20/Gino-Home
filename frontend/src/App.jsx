@@ -16,6 +16,7 @@ import Groceries from './pages/Groceries';
 import Notizen from './pages/Notizen';
 import Vertraege from './pages/Vertraege';
 import Updates from './pages/Updates';
+import Mehr from './pages/Mehr';
 
 /* ── Force Password Change Modal ─────────────────────────────────────── */
 function ForcePasswordChange() {
@@ -160,6 +161,7 @@ export default function App() {
         <Route path="notizen"   element={<Notizen />} />
         <Route path="vertraege" element={<Vertraege />} />
         <Route path="updates"   element={<Updates />} />
+        <Route path="mehr"      element={<Mehr />} />
         <Route path="groups/:groupId"      element={<GroupView />} />
         <Route path="groups/:groupId/:tab" element={<GroupView />} />
       </Route>
