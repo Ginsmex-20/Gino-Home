@@ -184,8 +184,13 @@ export default function Layout() {
           style={{
             display: 'none',           /* CSS überschreibt das auf Mobile zu flex */
             alignItems: 'center',
+            /* Safe-area-inset-top schiebt Inhalt unter Dynamic Island / Notch.
+               Auf Geraeten ohne Insel (z.B. iPhone SE, Android, Desktop)
+               ist env(safe-area-inset-top) = 0 und der Header bleibt 56px hoch. */
             padding: '0 16px',
-            height: '56px',
+            paddingTop: 'env(safe-area-inset-top)',
+            height: 'calc(56px + env(safe-area-inset-top))',
+            boxSizing: 'border-box',
             flexShrink: 0,
             background: 'rgba(15,15,15,0.97)',
             backdropFilter: 'blur(20px)',
