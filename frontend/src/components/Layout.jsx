@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { RefreshCw, Sparkles } from 'lucide-react';
+import { Menu, RefreshCw, Sparkles } from 'lucide-react';
 import Sidebar from './Sidebar';
 import BottomNav from './BottomNav';
 import { SocketManager, NotificationPanel, ToastContainer, NotificationBell } from './Notifications';
@@ -111,9 +111,20 @@ function UpdateBanner() {
 }
 
 export default function Layout() {
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, toggleCollapsed] = useCollapsed();
   const pageTitle = usePageTitle();
   const { user }  = useAuth();
+  const { pathname } = useLocation();
+
+  /* Sidebar bei Navigation schliessen */
+  useEffect(() => { setMobileOpen(false); }, [pathname]);
+
+  /* Body-Scroll sperren wenn Sidebar offen */
+  useEffect(() => {
+    document.body.style.overflow = mobileOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
 
   return (
     <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', backgroundColor: '#0f0f0f' }}>
@@ -133,7 +144,35 @@ export default function Layout() {
         />
       </div>
 
-      {/* Mobile Overlay-Sidebar entfernt: stattdessen BottomNav + /mehr-Seite */}
+      {/* ════════════════════════════════════════════════════
+          MOBIL-OVERLAY — vom Hamburger im Header gesteuert.
+          Auf Desktop per CSS (.mobile-overlay-sidebar) ausgeblendet.
+          ════════════════════════════════════════════════════ */}
+      <div className="mobile-overlay-sidebar" style={{ display: 'none' }}>
+        {/* Backdrop */}
+        <div
+          onClick={() => setMobileOpen(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 40,
+            background: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            opacity: mobileOpen ? 1 : 0,
+            pointerEvents: mobileOpen ? 'auto' : 'none',
+            transition: 'opacity 0.25s ease',
+          }}
+        />
+        {/* Slide-in Panel */}
+        <div style={{
+          position: 'fixed', top: 0, left: 0, height: '100%',
+          zIndex: 50, willChange: 'transform',
+          transform: mobileOpen ? 'translateX(0)' : 'translateX(-100%)',
+          transition: 'transform 0.3s cubic-bezier(0.32,0.72,0,1)',
+          boxShadow: mobileOpen ? '8px 0 48px rgba(0,0,0,0.7)' : 'none',
+        }}>
+          <Sidebar onClose={() => setMobileOpen(false)} isMobile />
+        </div>
+      </div>
 
       {/* ════════════════════════════════════════════════════
           HAUPTBEREICH
@@ -163,7 +202,20 @@ export default function Layout() {
             top: 0,
           }}
         >
-          {/* Hamburger entfernt — Mobile-Navigation erfolgt komplett ueber BottomNav + /mehr */}
+          {/* Hamburger ☰ — oeffnet die volle Sidebar als Slide-in */}
+          <button
+            onClick={() => setMobileOpen(true)}
+            aria-label="Menue oeffnen"
+            style={{
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(255,255,255,0.08)', border: 'none',
+              color: '#cbd5e1', cursor: 'pointer', marginRight: 12,
+              WebkitTapHighlightColor: 'transparent',
+            }}
+          >
+            <Menu size={21} />
+          </button>
 
           {/* Seiten-Titel */}
           <span style={{
