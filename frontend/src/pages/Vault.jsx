@@ -8,6 +8,7 @@ const CATS = [
   { v: '', l: 'Alle' },
   { v: 'subscription', l: 'Abonnements' },
   { v: 'account', l: 'Accounts' },
+  { v: 'email', l: 'E-Mails' },
   { v: 'other', l: 'Sonstiges' },
 ];
 
@@ -45,10 +46,11 @@ function VaultEntry({ entry, onEdit, onDelete }) {
 
   const catStyles = {
     subscription: 'text-amber-400 bg-amber-500/10',
-    account: 'text-blue-400 bg-blue-500/10',
-    other: 'text-slate-400 bg-slate-700/60'
+    account:      'text-blue-400 bg-blue-500/10',
+    email:        'text-purple-400 bg-purple-500/10',
+    other:        'text-slate-400 bg-slate-700/60',
   };
-  const catLabels = { subscription: 'Abo', account: 'Account', other: 'Sonstiges' };
+  const catLabels = { subscription: 'Abo', account: 'Account', email: 'E-Mail', other: 'Sonstiges' };
   const hrefUrl = entry.website ? (entry.website.startsWith('http') ? entry.website : `https://${entry.website}`) : '#';
 
   return (
@@ -199,6 +201,7 @@ export default function Vault() {
               <select className="w-full px-3.5 py-2.5 text-sm" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}>
                 <option value="subscription">Abonnement</option>
                 <option value="account">Account</option>
+                <option value="email">E-Mail</option>
                 <option value="other">Sonstiges</option>
               </select>
             </div>
