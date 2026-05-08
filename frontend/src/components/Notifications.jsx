@@ -89,10 +89,12 @@ export function NotificationPanel() {
         style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.4)' }}
       />
 
-      {/* Panel */}
-      <div style={{
+      {/* Panel — auf Mobile (max 767px) zentriert ueber notification-panel-mobile,
+          auf Desktop oben rechts (Default) */}
+      <div className="notification-panel-mobile" style={{
         position: 'fixed',
-        top: '16px', right: '16px',
+        top: 'calc(16px + env(safe-area-inset-top))',
+        right: '16px',
         width: 'min(340px, calc(100vw - 32px))',
         maxHeight: '520px',
         background: '#1e1e1e',

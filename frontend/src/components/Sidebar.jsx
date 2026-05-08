@@ -206,6 +206,10 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
       {/* ── Logo + Collapse-Toggle ───────────────────────────────── */}
       <div style={{
         padding: collapsed ? '16px 0' : '14px 16px',
+        /* iOS Mobile: zusaetzlicher Abstand fuer Dynamic Island / Notch */
+        paddingTop: isMobile
+          ? `calc(14px + env(safe-area-inset-top))`
+          : (collapsed ? '16px' : '14px'),
         borderBottom: '1px solid rgba(255,255,255,0.06)',
         display: 'flex',
         alignItems: 'center',

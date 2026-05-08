@@ -81,9 +81,9 @@ export default function Tasks() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* ── Header ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+      <div className="page-header-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
         <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#fff', margin: 0 }}>Aufgaben</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="page-header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <select
             value={filterType}
             onChange={e => setFilterType(e.target.value)}
@@ -96,7 +96,7 @@ export default function Tasks() {
           <button
             onClick={openCreate}
             style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
               padding: '9px 16px', background: '#f97316', color: '#fff',
               border: 'none', borderRadius: '12px', fontSize: '14px',
               fontWeight: 600, cursor: 'pointer',
