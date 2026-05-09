@@ -77,13 +77,12 @@ router.delete('/subcategories/:id', auth, (req, res) => {
 router.get('/', auth, (req, res) => {
   const { group_id, category } = req.query;
   let query, params;
+  const attachCountSub = `(SELECT COUNT(*) FROM document_attachments WHERE document_id = d.id) as attachment_count`;
   if (group_id) {
-    // Gruppe: alle Dokumente der Gruppe
-    query = `SELECT d.*, u.username as uploader_name FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.group_id = ?`;
+    query = `SELECT d.*, u.username as uploader_name, ${attachCountSub} FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.group_id = ?`;
     params = [group_id];
   } else {
-    // Persönlich: nur eigene Dokumente ohne Gruppe
-    query = `SELECT d.*, u.username as uploader_name FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.uploaded_by = ? AND d.group_id IS NULL`;
+    query = `SELECT d.*, u.username as uploader_name, ${attachCountSub} FROM documents d LEFT JOIN users u ON d.uploaded_by = u.id WHERE d.uploaded_by = ? AND d.group_id IS NULL`;
     params = [req.user.id];
   }
   if (category) { query += ' AND d.category = ?'; params.push(category); }
@@ -91,6 +90,56 @@ router.get('/', auth, (req, res) => {
   if (subcategory) { query += ' AND d.subcategory = ?'; params.push(subcategory); }
   query += ' ORDER BY d.created_at DESC';
   res.json(db.prepare(query).all(...params));
+});
+
+// ── Anhänge ──────────────────────────────────────────────────────────────────
+router.get('/:id/attachments', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Dokument nicht gefunden' });
+  const list = db.prepare('SELECT * FROM document_attachments WHERE document_id = ? ORDER BY created_at ASC').all(req.params.id);
+  res.json(list);
+});
+
+router.post('/:id/attachments', auth, upload.array('files', 20), async (req, res) => {
+  if (!req.files?.length) return res.status(400).json({ error: 'Keine Dateien' });
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Dokument nicht gefunden' });
+
+  const groupName = doc.group_id ? db.prepare('SELECT name FROM groups WHERE id = ?').get(doc.group_id)?.name : null;
+  const inserted = [];
+
+  for (const file of req.files) {
+    const filepath = `/uploads/documents/${file.filename}`;
+    let nc_path = null;
+    if (nc.enabled()) {
+      try {
+        const dir = nc.buildDocumentDir({ category: doc.category || 'other', subcategory: doc.subcategory, groupName });
+        await nc.mkdirAll(dir);
+        nc_path = dir + '/' + file.originalname;
+        const localPath = path.join(uploadsPath, 'documents', file.filename);
+        await nc.uploadFile(localPath, nc_path);
+      } catch (e) { console.error('[Nextcloud] Anhang fehlgeschlagen:', e.message); nc_path = null; }
+    }
+    const result = db.prepare(
+      'INSERT INTO document_attachments (document_id, filename, filepath, size, mimetype, nc_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(req.params.id, file.originalname, filepath, file.size, file.mimetype, nc_path, req.user.id);
+    inserted.push(db.prepare('SELECT * FROM document_attachments WHERE id = ?').get(result.lastInsertRowid));
+  }
+  res.json(inserted);
+});
+
+router.delete('/attachments/:attachmentId', auth, async (req, res) => {
+  const att = db.prepare('SELECT a.*, d.uploaded_by as doc_owner FROM document_attachments a JOIN documents d ON a.document_id = d.id WHERE a.id = ?').get(req.params.attachmentId);
+  if (!att) return res.status(404).json({ error: 'Anhang nicht gefunden' });
+  if (att.doc_owner !== req.user.id) return res.status(403).json({ error: 'Kein Zugriff' });
+
+  const filename = path.basename(att.filepath);
+  const fullPath = path.join(uploadsPath, 'documents', filename);
+  if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+  if (att.nc_path) { try { await nc.deleteFile(att.nc_path); } catch (e) { console.error('[Nextcloud] Anhang-Löschen fehlgeschlagen:', e.message); } }
+
+  db.prepare('DELETE FROM document_attachments WHERE id = ?').run(req.params.attachmentId);
+  res.json({ success: true });
 });
 
 router.post('/upload', auth, upload.single('file'), async (req, res) => {
@@ -207,6 +256,15 @@ router.put('/:id', auth, (req, res) => {
 router.delete('/:id', auth, async (req, res) => {
   const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ?').get(req.params.id, req.user.id);
   if (!doc) return res.status(404).json({ error: 'Nicht gefunden' });
+
+  // Anhänge mitlöschen (lokal + Nextcloud)
+  const attachments = db.prepare('SELECT * FROM document_attachments WHERE document_id = ?').all(req.params.id);
+  for (const att of attachments) {
+    const aFilename = path.basename(att.filepath);
+    const aPath = path.join(uploadsPath, 'documents', aFilename);
+    if (fs.existsSync(aPath)) fs.unlinkSync(aPath);
+    if (att.nc_path) { try { await nc.deleteFile(att.nc_path); } catch {} }
+  }
 
   // Lokale Datei löschen
   const filename = path.basename(doc.filepath);

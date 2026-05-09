@@ -283,4 +283,17 @@ try { db.exec('ALTER TABLE documents ADD COLUMN starred INTEGER DEFAULT 0'); } c
 try { db.exec('ALTER TABLE documents ADD COLUMN due_date DATE'); } catch {}
 try { db.exec('ALTER TABLE documents ADD COLUMN paid INTEGER DEFAULT 0'); } catch {}
 
+// Dokument-Anhänge (mehrere Dateien pro Dokument-Eintrag)
+try { db.exec(`CREATE TABLE IF NOT EXISTS document_attachments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+  filename TEXT NOT NULL,
+  filepath TEXT NOT NULL,
+  size INTEGER DEFAULT 0,
+  mimetype TEXT,
+  nc_path TEXT,
+  uploaded_by INTEGER REFERENCES users(id),
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)`); } catch {}
+
 module.exports = db;
