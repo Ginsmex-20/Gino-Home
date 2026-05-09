@@ -18,6 +18,7 @@ import Vertraege from './pages/Vertraege';
 import Updates from './pages/Updates';
 import Mehr from './pages/Mehr';
 import Friends from './pages/Friends';
+import SharedFromFriend from './pages/SharedFromFriend';
 
 /* ── Force Password Change Modal ─────────────────────────────────────── */
 function ForcePasswordChange() {
@@ -164,6 +165,8 @@ export default function App() {
         <Route path="updates"   element={<Updates />} />
         <Route path="mehr"      element={<Mehr />} />
         <Route path="friends"   element={<Friends />} />
+        <Route path="shared/:ownerId"      element={<SharedFromFriend />} />
+        <Route path="shared/:ownerId/:tab" element={<SharedFromFriend />} />
         <Route path="groups/:groupId"      element={<GroupView />} />
         <Route path="groups/:groupId/:tab" element={<GroupView />} />
       </Route>

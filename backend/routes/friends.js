@@ -189,6 +189,82 @@ router.post('/category-access', auth, (req, res) => {
   res.json({ success: true });
 });
 
+/* ════════════════════════════════════════════════════════════════════
+   SHARER-VIEW — Liste der Freunde die mit mir teilen + Items von einem
+   ════════════════════════════════════════════════════════════════════ */
+
+const RESOURCE_TABLES = {
+  document: { table: 'documents', owner: 'uploaded_by', personalOnly: true },
+  task: { table: 'tasks', owner: 'created_by', personalOnly: true },
+  contract: { table: 'contracts', owner: 'created_by', personalOnly: true },
+  loan: { table: 'loans', owner: 'created_by', personalOnly: true },
+  finance_item: { table: 'finance_items', owner: 'created_by', personalOnly: true },
+  calendar_event: { table: 'calendar_events', owner: 'created_by', personalOnly: true },
+  vault_entry: { table: 'vault_entries', owner: 'user_id', personalOnly: false },
+};
+
+// Liste aller Freunde die mit mir was teilen (Kategorie-Zugriff oder Einzel-Items)
+router.get('/sharers', auth, (req, res) => {
+  const sharers = db.prepare(`
+    SELECT DISTINCT u.id as user_id, u.username, u.email, u.avatar
+    FROM users u
+    WHERE u.id IN (
+      SELECT owner_id FROM friend_category_access WHERE friend_id = ?
+      UNION
+      SELECT owner_id FROM friend_shares WHERE friend_id = ?
+    )
+    ORDER BY u.username
+  `).all(req.user.id, req.user.id);
+
+  const result = sharers.map(s => {
+    const catAccess = db.prepare('SELECT resource_type FROM friend_category_access WHERE owner_id = ? AND friend_id = ?')
+      .all(s.user_id, req.user.id).map(r => r.resource_type);
+    const itemTypes = db.prepare('SELECT DISTINCT resource_type FROM friend_shares WHERE owner_id = ? AND friend_id = ?')
+      .all(s.user_id, req.user.id).map(r => r.resource_type);
+    const all = [...new Set([...catAccess, ...itemTypes])];
+    return { ...s, categories: all, full_access: catAccess };
+  });
+  res.json(result);
+});
+
+// Items von einem bestimmten Freund (Owner) für eine bestimmte Kategorie
+router.get('/from/:ownerId/:type', auth, (req, res) => {
+  const { ownerId, type } = req.params;
+  const cfg = RESOURCE_TABLES[type];
+  if (!cfg) return res.status(400).json({ error: 'Unbekannter Typ' });
+
+  const hasFullAccess = !!db.prepare('SELECT 1 FROM friend_category_access WHERE owner_id = ? AND friend_id = ? AND resource_type = ?')
+    .get(ownerId, req.user.id, type);
+
+  const personalFilter = cfg.personalOnly ? ' AND (t.group_id IS NULL)' : '';
+
+  let items;
+  if (hasFullAccess) {
+    items = db.prepare(
+      `SELECT t.*, 'category' as access_via FROM ${cfg.table} t
+       WHERE t.${cfg.owner} = ?${personalFilter}
+       ORDER BY t.created_at DESC`
+    ).all(ownerId);
+  } else {
+    items = db.prepare(
+      `SELECT t.*, 'item' as access_via FROM ${cfg.table} t
+       JOIN friend_shares fs ON fs.resource_id = t.id AND fs.resource_type = ?
+       WHERE fs.owner_id = ? AND fs.friend_id = ? AND t.${cfg.owner} = ?${personalFilter}
+       ORDER BY t.created_at DESC`
+    ).all(type, ownerId, req.user.id, ownerId);
+  }
+
+  // Anhang-Counts für Dokumente
+  if (type === 'document') {
+    items = items.map(it => ({
+      ...it,
+      attachment_count: db.prepare('SELECT COUNT(*) as n FROM document_attachments WHERE document_id = ?').get(it.id)?.n || 0
+    }));
+  }
+
+  res.json(items);
+});
+
 // Was wurde mit MIR geteilt? (Einzel-Shares + Kategorie-Zugriff)
 router.get('/shared-with-me', auth, (req, res) => {
   const { type } = req.query;

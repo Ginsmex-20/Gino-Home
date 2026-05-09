@@ -36,7 +36,121 @@ const groupSubNav = [
 
 const typeDot = { household: '#4ade80', work: '#60a5fa', general: '#f97316' };
 
-/* ── Gruppen-Abschnitt ──────────────────────────────────────────── */
+const RESOURCE_LABELS = {
+  document: { label: 'Dokumente', icon: FileText },
+  task: { label: 'Aufgaben', icon: CheckSquare },
+  contract: { label: 'Verträge', icon: ReceiptText },
+  loan: { label: 'Schulden/Raten', icon: ReceiptText },
+  finance_item: { label: 'Finanzen', icon: Euro },
+  calendar_event: { label: 'Termine', icon: Calendar },
+  vault_entry: { label: 'Tresor', icon: KeyRound },
+};
+
+/* ── "Persönliches von Freunden" — Sidebar-Sektion ─────────────── */
+function SharersSection({ onClose, collapsed }) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [expanded, setExpanded] = useState({});
+
+  const { data: sharers = [] } = useQuery({
+    queryKey: ['friend-sharers'],
+    queryFn:  () => api.get('/friends/sharers'),
+  });
+
+  const toggle   = id   => setExpanded(e => ({ ...e, [id]: !e[id] }));
+  const isActive = id   => location.pathname.startsWith(`/shared/${id}`);
+  const go       = path => { navigate(path); onClose?.(); };
+
+  if (sharers.length === 0) {
+    return collapsed ? null : (
+      <div style={{ padding: '8px 12px', fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
+        Noch keine Freigaben. Frage einen Freund ob er etwas mit dir teilt!
+      </div>
+    );
+  }
+
+  if (collapsed) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center', padding: '8px 0' }}>
+        {sharers.map(s => (
+          <button key={s.user_id} onClick={() => go(`/shared/${s.user_id}`)}
+            title={s.username}
+            style={{
+              width: 32, height: 32, borderRadius: 9, flexShrink: 0,
+              background: isActive(s.user_id) ? '#f43f5e' : 'rgba(244,63,94,0.15)',
+              border: 'none', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: isActive(s.user_id) ? '#fff' : '#fb7185',
+              fontSize: '12px', fontWeight: 700,
+            }}>
+            {s.avatar ? <img src={s.avatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} /> : s.username[0].toUpperCase()}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+      {sharers.map(s => {
+        const isExp = expanded[s.user_id];
+        const isAct = isActive(s.user_id);
+        return (
+          <div key={s.user_id}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <button onClick={() => go(`/shared/${s.user_id}`)}
+                style={{
+                  flex: 1, display: 'flex', alignItems: 'center', gap: '10px',
+                  padding: '8px 10px', borderRadius: '10px',
+                  background: isAct ? 'rgba(244,63,94,0.12)' : 'transparent',
+                  color: isAct ? '#fb7185' : '#cbd5e1',
+                  border: 'none', cursor: 'pointer', textAlign: 'left',
+                  fontSize: '13px', fontWeight: 500,
+                }}>
+                {s.avatar
+                  ? <img src={s.avatar} alt="" style={{ width: 26, height: 26, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                  : <div style={{ width: 26, height: 26, borderRadius: '50%', background: 'linear-gradient(135deg,#f43f5e,#fb7185)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{s.username[0].toUpperCase()}</div>
+                }
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.username}</span>
+              </button>
+              {s.categories?.length > 0 && (
+                <button onClick={() => toggle(s.user_id)}
+                  style={{ padding: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex' }}>
+                  {isExp ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                </button>
+              )}
+            </div>
+            {isExp && (
+              <div style={{ paddingLeft: '32px', marginBottom: '4px' }}>
+                {s.categories.map(cat => {
+                  const cfg = RESOURCE_LABELS[cat];
+                  if (!cfg) return null;
+                  const Icon = cfg.icon;
+                  const tabActive = location.pathname === `/shared/${s.user_id}/${cat}`;
+                  return (
+                    <button key={cat} onClick={() => go(`/shared/${s.user_id}/${cat}`)}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: '8px',
+                        padding: '6px 10px', borderRadius: '8px',
+                        background: tabActive ? 'rgba(244,63,94,0.08)' : 'transparent',
+                        color: tabActive ? '#fb7185' : '#94a3b8',
+                        border: 'none', cursor: 'pointer', textAlign: 'left',
+                        fontSize: '12px', marginBottom: '1px',
+                      }}>
+                      <Icon size={11} /> {cfg.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── Gruppen-Abschnitt (DEPRECATED — nicht mehr verwendet) ────── */
 function GroupsSection({ onClose, collapsed }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -317,12 +431,12 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
         {!collapsed && (
           <div style={{ padding: '0 12px 4px' }}>
             <span style={{ fontSize: '10px', fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Gruppen
+              Persönliches von
             </span>
           </div>
         )}
 
-        <GroupsSection onClose={onClose} collapsed={collapsed} />
+        <SharersSection onClose={onClose} collapsed={collapsed} />
       </nav>
 
       {/* ── Footer: Benachrichtigung + Profil + Logout ───────────── */}
