@@ -50,6 +50,28 @@ function FriendPermissions({ friendId, friendUsername }) {
 
   const grantedMap = Object.fromEntries(granted.map(g => [g.resource_type, g]));
 
+  // Hilfs-Mutation: ALLE Kategorien mit ALLEN Rechten (oder alles aus)
+  const allRightsMut = useMutation({
+    mutationFn: async (mode) => {
+      const types = ['document','task','contract','loan','finance_item','calendar_event','vault_entry'];
+      for (const t of types) {
+        await api.post('/friends/category-access', {
+          friend_id: friendId,
+          resource_type: t,
+          allowed: mode === 'all',
+          can_upload: mode === 'all' ? 1 : 0,
+          can_edit:   mode === 'all' ? 1 : 0,
+          can_delete: mode === 'all' ? 1 : 0,
+        });
+      }
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['friend-cat-access', friendId] });
+      qc.invalidateQueries({ queryKey: ['friend-sharers'] });
+      qc.invalidateQueries({ queryKey: ['joint-list'] });
+    },
+  });
+
   const CATS = [
     { key: 'document',        label: 'Dokumente',     icon: FileText,       color: '#f97316' },
     { key: 'task',            label: 'Aufgaben',      icon: CheckSquare,    color: '#3b82f6' },
@@ -62,9 +84,25 @@ function FriendPermissions({ friendId, friendUsername }) {
 
   return (
     <div style={{ background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px', marginTop: '8px' }}>
-      <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
-        {friendUsername} darf sehen:
-      </p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+        <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+          {friendUsername} darf sehen:
+        </p>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button onClick={() => { if (confirm(`${friendUsername} alle Rechte für ALLE Kategorien geben? (Ansehen + Hochladen + Bearbeiten + Löschen)`)) allRightsMut.mutate('all'); }}
+            disabled={allRightsMut.isPending}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', background: 'linear-gradient(135deg,#22c55e,#16a34a)', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+            {allRightsMut.isPending ? <Loader2 size={11} className="animate-spin" /> : '✓'} Alle Rechte
+          </button>
+          {granted.length > 0 && (
+            <button onClick={() => { if (confirm(`Alle Rechte für ${friendUsername} entziehen?`)) allRightsMut.mutate('none'); }}
+              disabled={allRightsMut.isPending}
+              style={{ padding: '6px 10px', background: 'rgba(239,68,68,0.1)', color: '#f87171', border: '1px solid rgba(239,68,68,0.25)', borderRadius: '8px', fontSize: '11px', fontWeight: 500, cursor: 'pointer' }}>
+              Alle aus
+            </button>
+          )}
+        </div>
+      </div>
       {error && (
         <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', padding: '8px 10px', fontSize: '12px', color: '#f87171', marginBottom: '8px' }}>
           ⚠️ {error}
@@ -109,6 +147,17 @@ function FriendPermissions({ friendId, friendUsername }) {
               {/* Sub-Toggles für Berechtigungen */}
               {on && isExp && (
                 <div style={{ borderTop: `1px solid ${c.color}33`, padding: '8px 10px 10px', display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(0,0,0,0.15)' }}>
+                  {/* Schnell-Aktion: Alle Rechte für DIESE Kategorie */}
+                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginBottom: '2px' }}>
+                    <button onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: true, can_upload: 1, can_edit: 1, can_delete: 1 })}
+                      style={{ padding: '4px 9px', background: `${c.color}22`, color: c.color, border: `1px solid ${c.color}55`, borderRadius: '6px', fontSize: '11px', fontWeight: 600, cursor: 'pointer' }}>
+                      ✓ Alle Rechte
+                    </button>
+                    <button onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: true, can_upload: 0, can_edit: 0, can_delete: 0 })}
+                      style={{ padding: '4px 9px', background: 'transparent', color: '#64748b', border: '1px solid #2a2a2a', borderRadius: '6px', fontSize: '11px', fontWeight: 500, cursor: 'pointer' }}>
+                      Nur Ansehen
+                    </button>
+                  </div>
                   {[
                     { key: 'can_upload', label: 'Hochladen erlauben', hint: 'Darf neue Einträge zu deiner Kategorie hinzufügen' },
                     { key: 'can_edit',   label: 'Bearbeiten erlauben', hint: 'Darf bestehende Einträge ändern' },
