@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Plus, Eye, EyeOff, Copy, Trash2, Edit, Search, ExternalLink, Loader2, ShieldCheck } from 'lucide-react';
 import Modal from '../components/Modal';
 import api from '../api/client';
+import { ShareButton } from '../components/ui';
 
 const CATS = [
   { v: '', l: 'Alle' },
@@ -152,6 +153,11 @@ function VaultEntry({ entry, onEdit, onDelete }) {
           </a>
         )}
         {entry.notes && <p className="text-xs text-slate-500 px-1 pt-1 truncate">{entry.notes}</p>}
+      </div>
+
+      {/* Mit Freunden teilen */}
+      <div className="mt-3 pt-3 border-t border-border">
+        <ShareButton resourceType="vault_entry" resourceId={entry.id} />
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import { de } from 'date-fns/locale';
 import api from '../api/client';
 import ConfirmDialog from '../components/ConfirmDialog';
 import KuendigungModal from '../components/KuendigungModal';
-import { StatCard, CategoryCard, PageHeader, WarningBanner, EmptyState } from '../components/ui';
+import { StatCard, CategoryCard, PageHeader, WarningBanner, EmptyState, ShareButton } from '../components/ui';
 
 /* ════════════════════════════════════════════════════════════════════
    KONSTANTEN
@@ -181,6 +181,9 @@ function ContractCard({ c, onEdit, onDelete, onKuendigung }) {
         </div>
       )}
 
+      {/* Mit Freunden teilen */}
+      <ShareButton resourceType="contract" resourceId={c.id} />
+
       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', opacity: hov ? 1 : 0, transition: 'opacity 0.15s', flexWrap: 'wrap' }}>
         <button onClick={() => onKuendigung(c)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '7px', color: '#f87171', fontSize: '11px', cursor: 'pointer' }}>
           <PenLine size={11} /> Kündigung
@@ -251,6 +254,9 @@ function LoanCard({ loan, onEdit, onDelete }) {
           </div>
         ))}
       </div>
+
+      {/* Mit Freunden teilen */}
+      <ShareButton resourceType="loan" resourceId={loan.id} />
 
       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', opacity: hov ? 1 : 0, transition: 'opacity 0.15s' }}>
         <button onClick={() => onEdit(loan)} style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: 'rgba(255,255,255,0.05)', border: '1px solid #2a2a2a', borderRadius: '7px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer' }}>
