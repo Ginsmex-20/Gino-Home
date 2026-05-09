@@ -12,13 +12,29 @@ import { StatCard, PageHeader, EmptyState } from '../components/ui';
 /* Komponente: Berechtigungs-Toggles für einen Freund */
 function FriendPermissions({ friendId, friendUsername }) {
   const qc = useQueryClient();
+  const [error, setError] = useState('');
   const { data: granted = [] } = useQuery({
     queryKey: ['friend-cat-access', friendId],
     queryFn: () => api.get(`/friends/category-access/${friendId}`),
   });
   const toggleMut = useMutation({
     mutationFn: ({ resource_type, allowed }) => api.post('/friends/category-access', { friend_id: friendId, resource_type, allowed }),
-    onSuccess: () => qc.invalidateQueries(['friend-cat-access', friendId]),
+    // Optimistic Update — UI bewegt sich sofort, ohne auf Server zu warten
+    onMutate: async ({ resource_type, allowed }) => {
+      await qc.cancelQueries({ queryKey: ['friend-cat-access', friendId] });
+      const previous = qc.getQueryData(['friend-cat-access', friendId]) || [];
+      const next = allowed
+        ? [...new Set([...previous, resource_type])]
+        : previous.filter(x => x !== resource_type);
+      qc.setQueryData(['friend-cat-access', friendId], next);
+      return { previous };
+    },
+    onError: (err, _vars, ctx) => {
+      qc.setQueryData(['friend-cat-access', friendId], ctx?.previous || []);
+      setError(err?.error || err?.message || 'Konnte nicht speichern');
+      setTimeout(() => setError(''), 4000);
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['friend-cat-access', friendId] }),
   });
   const set = new Set(granted);
 
@@ -37,37 +53,47 @@ function FriendPermissions({ friendId, friendUsername }) {
       <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
         {friendUsername} darf sehen:
       </p>
+      {error && (
+        <div style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', borderRadius: '8px', padding: '8px 10px', fontSize: '12px', color: '#f87171', marginBottom: '8px' }}>
+          ⚠️ {error}
+        </div>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         {CATS.map(c => {
           const Icon = c.icon;
           const on = set.has(c.key);
           return (
-            <button key={c.key}
+            <div key={c.key}
               onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: !on })}
-              disabled={toggleMut.isPending}
+              role="button" tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMut.mutate({ resource_type: c.key, allowed: !on }); } }}
               style={{
                 display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px',
                 borderRadius: '9px', border: `1px solid ${on ? c.color + '55' : '#1e1e1e'}`,
                 background: on ? `${c.color}10` : 'transparent',
                 cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
-              }}>
+                userSelect: 'none',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = on ? c.color : '#3a3a3a'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = on ? `${c.color}55` : '#1e1e1e'; }}>
               <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${c.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icon size={13} color={c.color} />
               </div>
               <span style={{ flex: 1, fontSize: '13px', color: '#cbd5e1', fontWeight: 500 }}>{c.label}</span>
-              {/* Toggle-Schieber */}
+              {/* Toggle-Schieber — pointer-events: none damit der Parent-Click greift */}
               <div style={{
-                width: 32, height: 18, borderRadius: '9px',
-                background: on ? c.color : '#1e1e1e',
-                position: 'relative', transition: 'background 0.15s', flexShrink: 0,
+                width: 36, height: 20, borderRadius: '10px',
+                background: on ? c.color : '#2a2a2a',
+                position: 'relative', transition: 'background 0.2s', flexShrink: 0, pointerEvents: 'none',
+                boxShadow: on ? `0 0 0 1px ${c.color}66` : 'inset 0 0 0 1px #1e1e1e',
               }}>
                 <div style={{
-                  position: 'absolute', top: 2, left: on ? 16 : 2,
-                  width: 14, height: 14, borderRadius: '50%', background: '#fff',
-                  transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                  position: 'absolute', top: 2, left: on ? 18 : 2,
+                  width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
                 }} />
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
