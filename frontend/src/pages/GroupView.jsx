@@ -358,7 +358,7 @@ function GroupDocDetailModal({ open, doc, onClose, onEdit, onDelete }) {
   const CatIcon = cat.icon;
   const urg = getDocDueUrgency(doc.due_date, doc.paid);
   const imp = doc.importance || 'normal';
-  const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
+  const impCfg = DOC_IMPORTANCE[imp] || DOC_IMPORTANCE.normal;
 
   return (
     <Modal open={open} onClose={onClose} title={null} size="lg">
@@ -768,7 +768,7 @@ function DocumentsTab({ groupId }) {
             const CatIcon = cat.icon;
             const urg = getDocDueUrgency(doc.due_date, doc.paid);
             const imp = doc.importance || 'normal';
-            const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
+            const impCfg = DOC_IMPORTANCE[imp] || DOC_IMPORTANCE.normal;
             return (
               <div key={doc.id} onClick={() => setDetailDoc(doc)}
                 style={{
@@ -811,7 +811,7 @@ function DocumentsTab({ groupId }) {
               const cat = GROUP_CAT_CONFIG[doc.category] || GROUP_CAT_CONFIG.other;
               const CatIcon = cat.icon;
               const imp = doc.importance || 'normal';
-              const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
+              const impCfg = DOC_IMPORTANCE[imp] || DOC_IMPORTANCE.normal;
               const urg = getDocDueUrgency(doc.due_date, doc.paid);
               return (
                 <div key={doc.id} className="group" onClick={() => setDetailDoc(doc)}
@@ -930,7 +930,7 @@ function DocumentsTab({ groupId }) {
             <div><label className="block text-sm text-slate-400 mb-1.5">Wichtigkeit</label>
               <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.importance}
                 onChange={e => setUploadForm(f => ({ ...f, importance: e.target.value }))}>
-                {Object.entries(IMPORTANCE).map(([k, cfg]) => <option key={k} value={k}>{cfg.label}</option>)}
+                {Object.entries(DOC_IMPORTANCE).map(([k, cfg]) => <option key={k} value={k}>{cfg.label}</option>)}
               </select>
             </div>
           </div>
@@ -1003,7 +1003,7 @@ function DocumentsTab({ groupId }) {
           <div>
             <label className="block text-sm text-slate-400 mb-1.5">Wichtigkeit</label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {Object.entries(IMPORTANCE).map(([key, cfg]) => (
+              {Object.entries(DOC_IMPORTANCE).map(([key, cfg]) => (
                 <button key={key} onClick={() => setEditForm(f => ({ ...f, importance: key }))}
                   style={{
                     padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
