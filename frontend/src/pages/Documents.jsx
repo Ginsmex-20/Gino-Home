@@ -7,6 +7,7 @@ import {
   Calendar, CheckCircle2, BellRing, Paperclip, Plus,
   FileSignature, Receipt, CreditCard, Shield, Banknote, Folder,
   AlertTriangle, Eye, FolderOpen, LayoutGrid, List as ListIcon,
+  Link2, Euro, Unlink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -174,7 +175,7 @@ function CategoryCard({ icon: Icon, label, color, count, active, onClick, onDele
 /* ════════════════════════════════════════════════════════════════════════
    DOKUMENT-DETAIL-MODAL (mit Anhängen)
    ════════════════════════════════════════════════════════════════════════ */
-function DetailModal({ open, doc, onClose, onEdit, onDelete }) {
+function DetailModal({ open, doc, onClose, onEdit, onDelete, onLinkContract, onLinkLoan, onUnlink }) {
   const qc = useQueryClient();
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
@@ -274,6 +275,44 @@ function DetailModal({ open, doc, onClose, onEdit, onDelete }) {
           </div>
         )}
 
+        {/* Betrag + Verknüpfung */}
+        {(doc.amount || doc.linked_type) && (
+          <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px', marginBottom: '14px' }}>
+            {doc.amount && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: doc.linked_type ? '10px' : 0 }}>
+                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Betrag</span>
+                <span style={{ fontSize: '15px', color: '#f97316', fontWeight: 700 }}>{Number(doc.amount).toFixed(2)} €</span>
+              </div>
+            )}
+            {doc.linked_type && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 10px', background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '9px' }}>
+                <Link2 size={13} color="#60a5fa" />
+                <span style={{ flex: 1, fontSize: '12px', color: '#cbd5e1' }}>
+                  Verknüpft mit: <strong style={{ color: '#60a5fa' }}>{doc.linked_type === 'contract' ? 'Vertrag' : 'Ratenzahlung'} #{doc.linked_id}</strong>
+                </span>
+                <button onClick={() => { if (confirm('Verknüpfung lösen? Der Vertrag/die Ratenzahlung bleibt erhalten.')) onUnlink(doc.id); }}
+                  style={{ padding: '4px 8px', background: 'transparent', border: '1px solid #1e1e1e', borderRadius: '6px', color: '#64748b', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Unlink size={11} /> Lösen
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Cross-Linking-Buttons (nur wenn nicht schon verknüpft) */}
+        {!doc.linked_type && (
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px' }}>
+            <button onClick={() => onLinkContract(doc)}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', borderRadius: '10px', color: '#60a5fa', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>
+              <FileSignature size={13} /> Als Vertrag erstellen
+            </button>
+            <button onClick={() => onLinkLoan(doc)}
+              style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '10px', background: 'rgba(244,63,94,0.08)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: '10px', color: '#fb7185', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>
+              <CreditCard size={13} /> Als Schulden/Rate
+            </button>
+          </div>
+        )}
+
         {/* Hauptdatei */}
         <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>Hauptdatei</p>
         <div style={{
@@ -356,6 +395,142 @@ function DetailModal({ open, doc, onClose, onEdit, onDelete }) {
 }
 
 /* ════════════════════════════════════════════════════════════════════════
+   LINK-MODAL — erstellt Vertrag / Ratenzahlung aus Dokument
+   ════════════════════════════════════════════════════════════════════════ */
+function LinkModal({ open, doc, type, onClose, onSubmit, loading }) {
+  const isContract = type === 'contract';
+  const [form, setForm] = useState({});
+  if (!doc) return null;
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit({
+      title: form.title || doc.title,
+      ...(isContract ? {
+        company: form.company,
+        contract_type: form.contract_type || 'other',
+        contract_number: form.contract_number,
+        customer_number: form.customer_number,
+        amount: form.amount || doc.amount,
+        billing_cycle: form.billing_cycle || 'monthly',
+        start_date: form.start_date,
+        end_date: form.end_date,
+        cancel_notice_months: form.cancel_notice_months || 1,
+        cancel_until: form.cancel_until,
+        auto_renew: form.auto_renew,
+        status: 'active',
+        notes: form.notes,
+      } : {
+        lender: form.lender,
+        type: form.type || 'loan',
+        total_amount: form.total_amount || doc.amount,
+        remaining_amount: form.remaining_amount,
+        monthly_rate: form.monthly_rate,
+        interest_rate: form.interest_rate,
+        reference_number: form.reference_number,
+        customer_number: form.customer_number,
+        purpose: form.purpose,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        status: 'active',
+        notes: form.notes,
+      })
+    });
+  };
+
+  return (
+    <Modal open={open} onClose={onClose} title={isContract ? 'Vertrag aus Dokument erstellen' : 'Schulden/Ratenzahlung aus Dokument erstellen'} size="md">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.25)', borderRadius: '10px', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Link2 size={14} color="#60a5fa" />
+          <span style={{ fontSize: '12px', color: '#94a3b8' }}>Wird mit Dokument <strong style={{ color: '#fff' }}>"{doc.title}"</strong> verknüpft</span>
+        </div>
+
+        <div><label className="block text-sm text-slate-400 mb-1.5">Bezeichnung</label>
+          <input className="w-full px-3.5 py-2.5 text-sm" defaultValue={doc.title} onChange={e => set('title', e.target.value)} /></div>
+
+        {isContract ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Anbieter</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. O2, Telekom" onChange={e => set('company', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Vertragstyp</label>
+                <select className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('contract_type', e.target.value)} defaultValue="other">
+                  <option value="mobile">Handy</option><option value="internet">Internet</option>
+                  <option value="electricity">Strom</option><option value="gas">Gas</option>
+                  <option value="streaming">Streaming</option><option value="insurance">Versicherung</option>
+                  <option value="rent">Miete</option><option value="other">Sonstiges</option>
+                </select></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Betrag (€)</label>
+                <input type="number" step="0.01" className="w-full px-3.5 py-2.5 text-sm" defaultValue={doc.amount || ''} onChange={e => set('amount', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Intervall</label>
+                <select className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('billing_cycle', e.target.value)} defaultValue="monthly">
+                  <option value="monthly">Monatlich</option><option value="quarterly">Vierteljährlich</option>
+                  <option value="biannual">Halbjährlich</option><option value="yearly">Jährlich</option>
+                </select></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Startdatum</label>
+                <input type="date" className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('start_date', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Laufzeit bis</label>
+                <input type="date" className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('end_date', e.target.value)} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Kundennummer</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('customer_number', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Vertragsnr.</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('contract_number', e.target.value)} /></div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Kreditgeber</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Bank, Saturn" onChange={e => set('lender', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Typ</label>
+                <select className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('type', e.target.value)} defaultValue="loan">
+                  <option value="loan">Kredit</option><option value="installment">Ratenkauf</option>
+                  <option value="debt">Schuld</option><option value="lease">Leasing</option>
+                </select></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Gesamtbetrag (€)</label>
+                <input type="number" step="0.01" className="w-full px-3.5 py-2.5 text-sm" defaultValue={doc.amount || ''} onChange={e => set('total_amount', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Restschuld (€)</label>
+                <input type="number" step="0.01" className="w-full px-3.5 py-2.5 text-sm" placeholder="Falls offen" onChange={e => set('remaining_amount', e.target.value)} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Monatsrate (€)</label>
+                <input type="number" step="0.01" className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('monthly_rate', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Zins (%)</label>
+                <input type="number" step="0.01" className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('interest_rate', e.target.value)} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="block text-sm text-slate-400 mb-1.5">Startdatum</label>
+                <input type="date" className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('start_date', e.target.value)} /></div>
+              <div><label className="block text-sm text-slate-400 mb-1.5">Letzte Rate</label>
+                <input type="date" className="w-full px-3.5 py-2.5 text-sm" onChange={e => set('end_date', e.target.value)} /></div>
+            </div>
+          </>
+        )}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
+          <button type="submit" disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50">
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <Link2 size={14} />}
+            Erstellen & verknüpfen
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ════════════════════════════════════════════════════════════════════════
    HAUPTKOMPONENTE
    ════════════════════════════════════════════════════════════════════════ */
 export default function Documents() {
@@ -379,10 +554,13 @@ export default function Documents() {
   const [detailDoc, setDetailDoc]     = useState(null);
 
   // Formulare
-  const [uploadForm, setUploadForm]   = useState({ title: '', category: 'invoice', subcategory: '', description: '', due_date: '', paid: false, importance: 'normal' });
+  const [uploadForm, setUploadForm]   = useState({ title: '', category: 'invoice', subcategory: '', description: '', due_date: '', paid: false, importance: 'normal', amount: '' });
   const [selectedFiles, setSelectedFiles] = useState([]);
-  const [editForm, setEditForm]       = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0, due_date: '', paid: false });
+  const [editForm, setEditForm]       = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0, due_date: '', paid: false, amount: '' });
   const [uploadError, setUploadError] = useState('');
+
+  // Cross-Linking Modal
+  const [linkModal, setLinkModal]     = useState(null); // null | { docId, type: 'contract'|'loan' }
 
   // Inline-Eingaben für Kategorie/Unterkategorie
   const [showNewCat, setShowNewCat]   = useState(false);
@@ -455,6 +633,7 @@ export default function Documents() {
       fd.append('description', uploadForm.description);
       if (uploadForm.due_date) fd.append('due_date', uploadForm.due_date);
       fd.append('paid', uploadForm.paid ? '1' : '0');
+      if (uploadForm.amount) fd.append('amount', uploadForm.amount);
       const main = await api.post('/documents/upload', fd);
       // Importance setzen wenn != normal
       if (uploadForm.importance && uploadForm.importance !== 'normal') {
@@ -471,7 +650,7 @@ export default function Documents() {
     onSuccess: () => {
       qc.invalidateQueries(['documents']);
       setShowUpload(false); setSelectedFiles([]);
-      setUploadForm({ title: '', category: 'invoice', subcategory: '', description: '', due_date: '', paid: false, importance: 'normal' });
+      setUploadForm({ title: '', category: 'invoice', subcategory: '', description: '', due_date: '', paid: false, importance: 'normal', amount: '' });
       setUploadError('');
     },
     onError: err => setUploadError(err?.error || err?.message || 'Upload fehlgeschlagen'),
@@ -547,9 +726,29 @@ export default function Documents() {
   const openEditFromDetail = (doc) => {
     setDetailDoc(null);
     setEditDoc(doc);
-    setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0, due_date: doc.due_date || '', paid: !!doc.paid });
+    setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0, due_date: doc.due_date || '', paid: !!doc.paid, amount: doc.amount || '' });
     setShowEdit(true);
   };
+
+  // Verknüpfung erstellen / lösen
+  const linkContractMut = useMutation({
+    mutationFn: ({ docId, data }) => api.post(`/documents/${docId}/link-contract`, data),
+    onSuccess: () => {
+      qc.invalidateQueries(['documents']); qc.invalidateQueries(['contracts']);
+      setLinkModal(null);
+    },
+  });
+  const linkLoanMut = useMutation({
+    mutationFn: ({ docId, data }) => api.post(`/documents/${docId}/link-loan`, data),
+    onSuccess: () => {
+      qc.invalidateQueries(['documents']); qc.invalidateQueries(['loans']);
+      setLinkModal(null);
+    },
+  });
+  const unlinkMut = useMutation({
+    mutationFn: id => api.delete(`/documents/${id}/link`),
+    onSuccess: () => qc.invalidateQueries(['documents']),
+  });
 
   /* ════════════════════════════════════════════════════════════════════
      RENDER
@@ -937,6 +1136,22 @@ export default function Documents() {
         onClose={() => setDetailDoc(null)}
         onEdit={openEditFromDetail}
         onDelete={(id) => { if (confirm('Dokument und alle Anhänge löschen?')) delMut.mutate(id); }}
+        onLinkContract={(d) => { setDetailDoc(null); setLinkModal({ docId: d.id, doc: d, type: 'contract' }); }}
+        onLinkLoan={(d) => { setDetailDoc(null); setLinkModal({ docId: d.id, doc: d, type: 'loan' }); }}
+        onUnlink={(id) => unlinkMut.mutate(id)}
+      />
+
+      {/* ═══ LINK-MODAL ════════════════════════════════════════════════ */}
+      <LinkModal
+        open={!!linkModal}
+        doc={linkModal?.doc}
+        type={linkModal?.type}
+        onClose={() => setLinkModal(null)}
+        loading={linkContractMut.isPending || linkLoanMut.isPending}
+        onSubmit={(data) => {
+          if (linkModal.type === 'contract') linkContractMut.mutate({ docId: linkModal.docId, data });
+          else linkLoanMut.mutate({ docId: linkModal.docId, data });
+        }}
       />
 
       {/* ═══ UPLOAD-MODAL (Multi-File) ═════════════════════════════════ */}
@@ -1034,24 +1249,31 @@ export default function Documents() {
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description}
               onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
 
-          {/* Fälligkeit */}
+          {/* Betrag + Fälligkeit */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
-                <Calendar size={13} /> Fällig am <span className="text-slate-600 text-xs">(optional)</span>
+                <Euro size={13} /> Betrag <span className="text-slate-600 text-xs">(optional)</span>
+              </label>
+              <input type="number" step="0.01" min="0" className="w-full px-3.5 py-2.5 text-sm"
+                placeholder="0.00"
+                value={uploadForm.amount}
+                onChange={e => setUploadForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Calendar size={13} /> Fällig am
               </label>
               <input type="date" className="w-full px-3.5 py-2.5 text-sm"
                 value={uploadForm.due_date}
                 onChange={e => setUploadForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '8px' }}>
-                <input type="checkbox" checked={uploadForm.paid} onChange={e => setUploadForm(f => ({ ...f, paid: e.target.checked }))}
-                  style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
-                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bereits bezahlt</span>
-              </label>
-            </div>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={uploadForm.paid} onChange={e => setUploadForm(f => ({ ...f, paid: e.target.checked }))}
+              style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bereits bezahlt</span>
+          </label>
 
           {uploadError && <p className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{uploadError}</p>}
 
@@ -1109,20 +1331,26 @@ export default function Documents() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Euro size={13} /> Betrag
+              </label>
+              <input type="number" step="0.01" min="0" className="w-full px-3.5 py-2.5 text-sm" placeholder="0.00"
+                value={editForm.amount}
+                onChange={e => setEditForm(f => ({ ...f, amount: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
                 <Calendar size={13} /> Fällig am
               </label>
               <input type="date" className="w-full px-3.5 py-2.5 text-sm"
                 value={editForm.due_date}
                 onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '8px' }}>
-                <input type="checkbox" checked={editForm.paid} onChange={e => setEditForm(f => ({ ...f, paid: e.target.checked }))}
-                  style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
-                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bezahlt</span>
-              </label>
-            </div>
           </div>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={editForm.paid} onChange={e => setEditForm(f => ({ ...f, paid: e.target.checked }))}
+              style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
+            <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bezahlt</span>
+          </label>
           <div className="flex justify-end gap-2">
             <button onClick={() => setShowEdit(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
             <button onClick={() => editMut.mutate({ id: editDoc.id, data: editForm })} disabled={editMut.isPending}

@@ -144,7 +144,7 @@ router.delete('/attachments/:attachmentId', auth, async (req, res) => {
 
 router.post('/upload', auth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Keine Datei' });
-  const { title, category, description, group_id, subcategory, due_date, paid } = req.body;
+  const { title, category, description, group_id, subcategory, due_date, paid, amount } = req.body;
   const filepath = `/uploads/documents/${req.file.filename}`;
 
   // ── Nextcloud-Sync ──────────────────────────────────────────────────────────
@@ -169,7 +169,7 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
   }
 
   const result = db.prepare(
-    'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by, due_date, paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by, due_date, paid, amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     title || req.file.originalname,
     req.file.originalname,
@@ -183,7 +183,8 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
     nc_path,
     req.user.id,
     due_date || null,
-    paid ? 1 : 0
+    paid ? 1 : 0,
+    amount ? Number(amount) : null
   );
   res.json(db.prepare('SELECT * FROM documents WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -247,10 +248,71 @@ router.patch('/:id/paid', auth, (req, res) => {
 });
 
 router.put('/:id', auth, (req, res) => {
-  const { title, category, description, subcategory, importance, starred, due_date, paid } = req.body;
-  db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ?, importance = ?, starred = ?, due_date = ?, paid = ? WHERE id = ? AND uploaded_by = ?')
-    .run(title, category, subcategory || null, description, importance || 'normal', starred ? 1 : 0, due_date || null, paid ? 1 : 0, req.params.id, req.user.id);
+  const { title, category, description, subcategory, importance, starred, due_date, paid, amount } = req.body;
+  db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ?, importance = ?, starred = ?, due_date = ?, paid = ?, amount = ? WHERE id = ? AND uploaded_by = ?')
+    .run(title, category, subcategory || null, description, importance || 'normal', starred ? 1 : 0, due_date || null, paid ? 1 : 0, amount !== undefined && amount !== '' ? Number(amount) : null, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id));
+});
+
+// ── Cross-Category-Verknüpfung ────────────────────────────────────────────────
+// Vertrag aus Dokument erstellen (oder verknüpfen)
+router.post('/:id/link-contract', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ?').get(req.params.id, req.user.id);
+  if (!doc) return res.status(404).json({ error: 'Dokument nicht gefunden' });
+  if (doc.linked_type) return res.status(409).json({ error: 'Dokument ist bereits verknüpft' });
+
+  const c = req.body || {};
+  const result = db.prepare(
+    'INSERT INTO contracts (title, company, contract_type, contract_number, customer_number, purpose, amount, billing_cycle, start_date, end_date, cancel_notice_months, cancel_until, auto_renew, status, notes, document_id, group_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    c.title || doc.title,
+    c.company || null, c.contract_type || 'other',
+    c.contract_number || null, c.customer_number || null, c.purpose || null,
+    Number(c.amount || doc.amount || 0), c.billing_cycle || 'monthly',
+    c.start_date || null, c.end_date || null,
+    Number(c.cancel_notice_months || 1), c.cancel_until || null,
+    c.auto_renew ? 1 : 0, c.status || 'active',
+    c.notes || null,
+    doc.id,
+    doc.group_id || null,
+    req.user.id
+  );
+  db.prepare('UPDATE documents SET linked_type = ?, linked_id = ? WHERE id = ?')
+    .run('contract', result.lastInsertRowid, doc.id);
+  res.json({ success: true, contract_id: result.lastInsertRowid, document: db.prepare('SELECT * FROM documents WHERE id = ?').get(doc.id) });
+});
+
+// Ratenzahlung/Schulden aus Dokument erstellen
+router.post('/:id/link-loan', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ?').get(req.params.id, req.user.id);
+  if (!doc) return res.status(404).json({ error: 'Dokument nicht gefunden' });
+  if (doc.linked_type) return res.status(409).json({ error: 'Dokument ist bereits verknüpft' });
+
+  const l = req.body || {};
+  const result = db.prepare(
+    'INSERT INTO loans (title, lender, creditor, type, total_amount, remaining_amount, monthly_rate, interest_rate, reference_number, customer_number, purpose, start_date, end_date, status, notes, document_id, group_id, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  ).run(
+    l.title || doc.title,
+    l.lender || null, l.creditor || null, l.type || 'loan',
+    Number(l.total_amount || doc.amount || 0),
+    l.remaining_amount !== undefined && l.remaining_amount !== '' ? Number(l.remaining_amount) : Number(doc.amount || 0),
+    Number(l.monthly_rate || 0), Number(l.interest_rate || 0),
+    l.reference_number || null, l.customer_number || null, l.purpose || null,
+    l.start_date || null, l.end_date || null,
+    l.status || 'active', l.notes || null,
+    doc.id, doc.group_id || null, req.user.id
+  );
+  db.prepare('UPDATE documents SET linked_type = ?, linked_id = ? WHERE id = ?')
+    .run('loan', result.lastInsertRowid, doc.id);
+  res.json({ success: true, loan_id: result.lastInsertRowid, document: db.prepare('SELECT * FROM documents WHERE id = ?').get(doc.id) });
+});
+
+// Verknüpfung lösen (löscht NICHT den verknüpften Eintrag)
+router.delete('/:id/link', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ? AND uploaded_by = ?').get(req.params.id, req.user.id);
+  if (!doc) return res.status(404).json({ error: 'Dokument nicht gefunden' });
+  db.prepare('UPDATE documents SET linked_type = NULL, linked_id = NULL WHERE id = ?').run(doc.id);
+  res.json({ success: true });
 });
 
 router.delete('/:id', auth, async (req, res) => {

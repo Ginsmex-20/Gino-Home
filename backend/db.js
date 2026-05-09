@@ -283,6 +283,14 @@ try { db.exec('ALTER TABLE documents ADD COLUMN starred INTEGER DEFAULT 0'); } c
 try { db.exec('ALTER TABLE documents ADD COLUMN due_date DATE'); } catch {}
 try { db.exec('ALTER TABLE documents ADD COLUMN paid INTEGER DEFAULT 0'); } catch {}
 
+// Dokumente: Betrag + Cross-Category-Verknüpfung
+try { db.exec('ALTER TABLE documents ADD COLUMN amount REAL'); } catch {}
+try { db.exec('ALTER TABLE documents ADD COLUMN linked_type TEXT'); } catch {} // 'contract' | 'loan' | null
+try { db.exec('ALTER TABLE documents ADD COLUMN linked_id INTEGER'); } catch {}
+// Verträge & Loans: Rück-Link zum Dokument
+try { db.exec('ALTER TABLE contracts ADD COLUMN document_id INTEGER'); } catch {}
+try { db.exec('ALTER TABLE loans ADD COLUMN document_id INTEGER'); } catch {}
+
 // Dokument-Anhänge (mehrere Dateien pro Dokument-Eintrag)
 try { db.exec(`CREATE TABLE IF NOT EXISTS document_attachments (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
