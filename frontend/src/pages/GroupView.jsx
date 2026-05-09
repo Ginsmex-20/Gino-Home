@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -7,7 +7,11 @@ import {
   Edit, Upload, Search, Download, Image, File, Clock, Home,
   ChevronLeft, ChevronRight, Briefcase, Star, Euro, Send, X, BookOpen,
   ArrowDownUp, Film, Music, Archive, FileCode,
+  FileSignature, Receipt, CreditCard, Shield, Banknote, Folder,
+  BellRing, Paperclip, CheckCircle2, Eye, FolderOpen, LayoutGrid,
+  List as ListIcon, AlertTriangle, Square,
 } from 'lucide-react';
+import { StatCard, CategoryCard, EmptyState, WarningBanner } from '../components/ui';
 import {
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   eachDayOfInterval, isSameMonth, isSameDay, isToday, addMonths, subMonths
@@ -271,152 +275,315 @@ function DocPill({ active, onClick, children, onDelete }) {
   );
 }
 
+/* ════════════════════════════════════════════════════════════════════
+   TAB: DOKUMENTE (Gruppe) — gleicher Stil wie persönliche Dokumente
+   ════════════════════════════════════════════════════════════════════ */
+const GROUP_CAT_CONFIG = {
+  contract:  { label: 'Verträge',     icon: FileSignature, color: '#3b82f6' },
+  invoice:   { label: 'Rechnungen',   icon: Receipt,        color: '#f97316' },
+  identity:  { label: 'Ausweise',     icon: CreditCard,     color: '#a855f7' },
+  insurance: { label: 'Versicherung', icon: Shield,         color: '#06b6d4' },
+  tax:       { label: 'Steuern',      icon: Banknote,       color: '#10b981' },
+  other:     { label: 'Sonstiges',    icon: Folder,         color: '#64748b' },
+};
+const GROUP_CAT_KEYS = Object.keys(GROUP_CAT_CONFIG);
+
+const GROUP_FILE_TYPES = [
+  { label: 'Alle Typen', value: '' },
+  { label: 'Bilder',     value: 'image' },
+  { label: 'PDFs',       value: 'pdf' },
+  { label: 'Videos',     value: 'video' },
+  { label: 'Audio',      value: 'audio' },
+  { label: 'Office',     value: 'office' },
+  { label: 'Archive',    value: 'archive' },
+];
+
+function getDocDueUrgency(due_date, paid) {
+  if (!due_date) return null;
+  if (paid) return { level: 'paid', label: 'Bezahlt', color: '#22c55e', bg: 'rgba(34,197,94,0.12)', border: '#22c55e' };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(due_date);
+  const diffDays = Math.ceil((due - today) / 86400000);
+  if (diffDays < 0)   return { level: 'overdue',  label: `Überfällig (${Math.abs(diffDays)}T)`, color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  border: '#ef4444' };
+  if (diffDays === 0) return { level: 'today',    label: 'Heute fällig!',          color: '#f97316', bg: 'rgba(249,115,22,0.12)', border: '#f97316' };
+  if (diffDays <= 7)  return { level: 'soon',     label: `Fällig in ${diffDays}T`, color: '#f97316', bg: 'rgba(249,115,22,0.1)',  border: '#f97316' };
+  if (diffDays <= 30) return { level: 'upcoming', label: `Fällig in ${diffDays}T`, color: '#eab308', bg: 'rgba(234,179,8,0.1)',   border: '#eab308' };
+  return { level: 'ok', label: format(due, 'd. MMM yyyy', { locale: de }), color: '#64748b', bg: 'rgba(100,116,139,0.08)', border: 'transparent' };
+}
+
+/* Detail-Modal mit Anhängen */
+function GroupDocDetailModal({ open, doc, onClose, onEdit, onDelete }) {
+  const qc = useQueryClient();
+  const fileRef = useRef();
+  const [uploading, setUploading] = useState(false);
+
+  const { data: attachments = [], isLoading } = useQuery({
+    queryKey: ['attachments', doc?.id],
+    queryFn: () => api.get(`/documents/${doc.id}/attachments`),
+    enabled: !!doc?.id && open,
+  });
+
+  const addAttachMut = useMutation({
+    mutationFn: (files) => {
+      const fd = new FormData();
+      for (const f of files) fd.append('files', f);
+      return api.post(`/documents/${doc.id}/attachments`, fd);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries(['attachments', doc.id]);
+      qc.invalidateQueries(['group-docs']);
+      setUploading(false);
+    },
+    onError: () => setUploading(false),
+  });
+
+  const delAttachMut = useMutation({
+    mutationFn: (id) => api.delete(`/documents/attachments/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries(['attachments', doc.id]);
+      qc.invalidateQueries(['group-docs']);
+    },
+  });
+
+  const handleAttach = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setUploading(true);
+    addAttachMut.mutate(files);
+    e.target.value = '';
+  };
+
+  if (!doc) return null;
+  const cat = GROUP_CAT_CONFIG[doc.category] || GROUP_CAT_CONFIG.other;
+  const CatIcon = cat.icon;
+  const urg = getDocDueUrgency(doc.due_date, doc.paid);
+  const imp = doc.importance || 'normal';
+  const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
+
+  return (
+    <Modal open={open} onClose={onClose} title={null} size="lg">
+      <div style={{ marginTop: '-8px' }}>
+        <div style={{
+          background: `linear-gradient(135deg, ${cat.color}1a, ${cat.color}05)`,
+          border: `1px solid ${cat.color}33`, borderRadius: '14px', padding: '16px 18px', marginBottom: '16px',
+          display: 'flex', alignItems: 'center', gap: '14px',
+        }}>
+          <div style={{ width: '50px', height: '50px', borderRadius: '12px', background: `${cat.color}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <CatIcon size={22} color={cat.color} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: '11px', color: cat.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+              {cat.label}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
+            </p>
+            <p style={{ fontSize: '18px', color: '#fff', fontWeight: 700, margin: '3px 0', lineHeight: 1.2, wordBreak: 'break-word' }}>{doc.title}</p>
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '4px' }}>
+              {urg && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: urg.bg, color: urg.color, border: `1px solid ${urg.border}66` }}>
+                  {doc.paid ? <CheckCircle2 size={11} /> : <CalIcon size={11} />} {urg.label}
+                </span>
+              )}
+              {imp !== 'normal' && (
+                <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: impCfg.bg, color: impCfg.color, border: `1px solid ${impCfg.border}` }}>
+                  {impCfg.label}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {doc.description && (
+          <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px', marginBottom: '14px' }}>
+            <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px' }}>Beschreibung</p>
+            <p style={{ fontSize: '13px', color: '#cbd5e1', margin: 0, lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{doc.description}</p>
+          </div>
+        )}
+
+        <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>Hauptdatei</p>
+        <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+          <div style={{ width: '38px', height: '38px', borderRadius: '9px', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            {fileIcon(doc.mimetype)}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: '13px', color: '#fff', fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.filename}</p>
+            <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>{formatSize(doc.size)} · {doc.uploader_name || '—'} · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</p>
+          </div>
+          <a href={doc.filepath} download target="_blank" rel="noreferrer"
+            style={{ padding: '7px 12px', background: '#1e1e1e', color: '#cbd5e1', borderRadius: '8px', fontSize: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '5px', textDecoration: 'none' }}>
+            <Download size={13} /> Download
+          </a>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Paperclip size={12} /> Anhänge {attachments.length > 0 && <span style={{ background: '#f97316', color: '#fff', borderRadius: '8px', padding: '1px 7px', fontSize: '10px' }}>{attachments.length}</span>}
+          </p>
+          <button onClick={() => fileRef.current?.click()} disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: 'rgba(249,115,22,0.1)', color: '#f97316', border: '1px solid rgba(249,115,22,0.3)', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>
+            {uploading ? <Loader2 size={12} className="animate-spin" /> : <Plus size={12} />} Datei{uploading ? ' wird hochgeladen…' : ' hinzufügen'}
+          </button>
+          <input ref={fileRef} type="file" multiple style={{ display: 'none' }} onChange={handleAttach} />
+        </div>
+
+        <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', overflow: 'hidden', marginBottom: '16px' }}>
+          {isLoading ? (
+            <div style={{ padding: '20px', textAlign: 'center' }}><Loader2 size={18} className="animate-spin text-orange-500 mx-auto" /></div>
+          ) : attachments.length === 0 ? (
+            <div style={{ padding: '20px', textAlign: 'center', color: '#475569', fontSize: '12px' }}>
+              <Paperclip size={20} style={{ margin: '0 auto 6px', opacity: 0.4 }} />
+              <p style={{ margin: 0 }}>Keine zusätzlichen Dateien</p>
+              <p style={{ margin: '3px 0 0', fontSize: '11px' }}>Mehrere Dateien können hier angehängt werden (z.B. Mahnung zur Rechnung)</p>
+            </div>
+          ) : (
+            attachments.map((att, idx) => (
+              <div key={att.id} style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '10px', borderTop: idx > 0 ? '1px solid #1e1e1e' : 'none' }}>
+                <div style={{ width: '34px', height: '34px', borderRadius: '8px', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {fileIcon(att.mimetype)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '12px', color: '#cbd5e1', fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.filename}</p>
+                  <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0' }}>{formatSize(att.size)} · {format(new Date(att.created_at), 'd. MMM yyyy', { locale: de })}</p>
+                </div>
+                <a href={att.filepath} download target="_blank" rel="noreferrer" style={{ padding: '6px', color: '#64748b', borderRadius: '6px', display: 'flex' }}><Download size={13} /></a>
+                <button onClick={() => { if (confirm('Anhang löschen?')) delAttachMut.mutate(att.id); }}
+                  style={{ padding: '6px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', borderRadius: '6px', display: 'flex' }}><Trash2 size={13} /></button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #1e1e1e', paddingTop: '14px' }}>
+          <button onClick={() => onDelete(doc.id)}
+            style={{ padding: '8px 14px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Trash2 size={13} /> Löschen
+          </button>
+          <button onClick={() => onEdit(doc)}
+            style={{ padding: '8px 14px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Edit size={13} /> Bearbeiten
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function DocumentsTab({ groupId }) {
   const qc = useQueryClient();
   const fileRef = useRef();
 
-  // Filter + Sort States
-  const [search,           setSearch]           = useState('');
-  const [catFilter,        setCatFilter]        = useState('');
-  const [subFilter,        setSubFilter]        = useState('');
-  const [typeFilter,       setTypeFilter]       = useState('');
-  const [sortBy,           setSortBy]           = useState('importance');
-  const [importanceFilter, setImportanceFilter] = useState('');
+  const [search, setSearch]               = useState('');
+  const [catFilter, setCatFilter]         = useState('');
+  const [subFilter, setSubFilter]         = useState('');
+  const [typeFilter, setTypeFilter]       = useState('');
+  const [sortBy, setSortBy]               = useState('importance');
+  const [importanceFilter, setImpFilter]  = useState('');
+  const [dueFilter, setDueFilter]         = useState('');
+  const [viewMode, setViewMode]           = useState('list');
 
-  // Modals
-  const [showUpload, setShowUpload] = useState(false);
-  const [showEdit,   setShowEdit]   = useState(false);
-  const [editDoc,    setEditDoc]    = useState(null);
+  const [showUpload, setShowUpload]   = useState(false);
+  const [showEdit, setShowEdit]       = useState(false);
+  const [editDoc, setEditDoc]         = useState(null);
+  const [detailDoc, setDetailDoc]     = useState(null);
 
-  // Formulare
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [uploadForm,   setUploadForm]   = useState({ title: '', category: 'other', subcategory: '', description: '' });
-  const [editForm,     setEditForm]     = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0 });
-  const [uploadError,  setUploadError]  = useState('');
+  const [uploadForm, setUploadForm]   = useState({ title: '', category: 'invoice', subcategory: '', description: '', due_date: '', paid: false, importance: 'normal' });
+  const [selectedFiles, setSelectedFiles] = useState([]);
+  const [editForm, setEditForm]       = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0, due_date: '', paid: false });
+  const [uploadError, setUploadError] = useState('');
 
-  // Neue Kat/Sub inline
-  const [showCatInput, setShowCatInput] = useState(false);
-  const [newCatName,   setNewCatName]   = useState('');
-  const [showSubInput, setShowSubInput] = useState(false);
-  const [newSubName,   setNewSubName]   = useState('');
-  const [showModalSub, setShowModalSub] = useState(false);
-  const [modalSubName, setModalSubName] = useState('');
+  const [showNewCat, setShowNewCat]   = useState(false);
+  const [newCatName, setNewCatName]   = useState('');
+  const [showNewSub, setShowNewSub]   = useState(false);
+  const [newSubName, setNewSubName]   = useState('');
 
-  useEffect(() => { setSubFilter(''); setShowSubInput(false); }, [catFilter]);
-
-  // ── Daten ────────────────────────────────────────────────────────────────
   const { data: docs = [], isLoading } = useQuery({
-    queryKey: ['group-docs', groupId, catFilter, subFilter],
-    queryFn: () => {
-      let url = `/documents?group_id=${groupId}`;
-      if (catFilter) url += `&category=${encodeURIComponent(catFilter)}`;
-      if (subFilter) url += `&subcategory=${encodeURIComponent(subFilter)}`;
-      return api.get(url);
-    }
+    queryKey: ['group-docs', groupId, catFilter],
+    queryFn: () => api.get(`/documents?group_id=${groupId}` + (catFilter ? `&category=${catFilter}` : '')),
   });
-
   const { data: customCats = [] } = useQuery({
     queryKey: ['doc-categories', groupId],
-    queryFn: () => api.get(`/documents/categories?group_id=${groupId}`)
+    queryFn: () => api.get(`/documents/categories?group_id=${groupId}`),
   });
-
   const { data: filterSubs = [] } = useQuery({
     queryKey: ['doc-subcategories-filter', groupId, catFilter],
     queryFn: () => catFilter ? api.get(`/documents/subcategories?group_id=${groupId}&parent_category=${encodeURIComponent(catFilter)}`) : Promise.resolve([]),
     enabled: !!catFilter,
   });
-
   const { data: uploadSubs = [] } = useQuery({
     queryKey: ['doc-subcategories-upload', groupId, uploadForm.category],
     queryFn: () => api.get(`/documents/subcategories?group_id=${groupId}&parent_category=${encodeURIComponent(uploadForm.category)}`),
     enabled: !!uploadForm.category,
   });
-
   const { data: editSubs = [] } = useQuery({
     queryKey: ['doc-subcategories-edit', groupId, editForm.category],
     queryFn: () => editForm.category ? api.get(`/documents/subcategories?group_id=${groupId}&parent_category=${encodeURIComponent(editForm.category)}`) : Promise.resolve([]),
     enabled: !!editForm.category,
   });
 
-  // ── Mutationen ────────────────────────────────────────────────────────────
-  const addCatMut = useMutation({
-    mutationFn: name => api.post('/documents/categories', { name, group_id: groupId }),
-    onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); setNewCatName(''); setShowCatInput(false); }
-  });
-  const delCatMut = useMutation({
-    mutationFn: id => api.delete(`/documents/categories/${id}`),
-    onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); if (catFilter) setCatFilter(''); }
-  });
-  const addSubMut = useMutation({
-    mutationFn: ({ name, parent }) => api.post('/documents/subcategories', { name, group_id: groupId, parent_category: parent }),
-    onSuccess: (_, { parent }) => {
-      qc.invalidateQueries(['doc-subcategories-filter', groupId, parent]);
-      qc.invalidateQueries(['doc-subcategories-upload', groupId, parent]);
-      setNewSubName(''); setShowSubInput(false);
-      setModalSubName(''); setShowModalSub(false);
-    }
-  });
-  const delSubMut = useMutation({
-    mutationFn: id => api.delete(`/documents/subcategories/${id}`),
-    onSuccess: () => {
-      qc.invalidateQueries(['doc-subcategories-filter', groupId, catFilter]);
-      if (subFilter) setSubFilter('');
-    }
-  });
+  const addCatMut = useMutation({ mutationFn: name => api.post('/documents/categories', { name, group_id: groupId }), onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); setNewCatName(''); setShowNewCat(false); } });
+  const delCatMut = useMutation({ mutationFn: id => api.delete(`/documents/categories/${id}`), onSuccess: () => { qc.invalidateQueries(['doc-categories', groupId]); if (catFilter) setCatFilter(''); } });
+  const addSubMut = useMutation({ mutationFn: ({ name, parent }) => api.post('/documents/subcategories', { name, parent_category: parent, group_id: groupId }), onSuccess: (_, { parent }) => { qc.invalidateQueries(['doc-subcategories-filter', groupId, parent]); qc.invalidateQueries(['doc-subcategories-upload', groupId, parent]); setNewSubName(''); setShowNewSub(false); } });
+  const delSubMut = useMutation({ mutationFn: id => api.delete(`/documents/subcategories/${id}`), onSuccess: () => { qc.invalidateQueries(['doc-subcategories-filter', groupId, catFilter]); if (subFilter) setSubFilter(''); } });
 
   const uploadMut = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const fd = new FormData();
-      fd.append('file', selectedFile);
-      fd.append('title', uploadForm.title || selectedFile.name);
+      fd.append('file', selectedFiles[0]);
+      fd.append('title', uploadForm.title || selectedFiles[0].name);
       fd.append('category', uploadForm.category);
       fd.append('subcategory', uploadForm.subcategory || '');
       fd.append('description', uploadForm.description);
       fd.append('group_id', groupId);
-      return api.post('/documents/upload', fd);
+      if (uploadForm.due_date) fd.append('due_date', uploadForm.due_date);
+      fd.append('paid', uploadForm.paid ? '1' : '0');
+      const main = await api.post('/documents/upload', fd);
+      if (uploadForm.importance && uploadForm.importance !== 'normal') {
+        await api.put(`/documents/${main.id}`, { ...main, importance: uploadForm.importance });
+      }
+      if (selectedFiles.length > 1) {
+        const fd2 = new FormData();
+        for (let i = 1; i < selectedFiles.length; i++) fd2.append('files', selectedFiles[i]);
+        await api.post(`/documents/${main.id}/attachments`, fd2);
+      }
+      return main;
     },
     onSuccess: () => {
       qc.invalidateQueries(['group-docs', groupId]);
-      setShowUpload(false); setSelectedFile(null);
-      setUploadForm({ title: '', category: 'other', subcategory: '', description: '' });
+      setShowUpload(false); setSelectedFiles([]);
+      setUploadForm({ title: '', category: 'invoice', subcategory: '', description: '', due_date: '', paid: false, importance: 'normal' });
       setUploadError('');
     },
     onError: err => setUploadError(err?.error || err?.message || 'Upload fehlgeschlagen'),
   });
 
-  const editMut = useMutation({
-    mutationFn: ({ id, data }) => api.put(`/documents/${id}`, data),
-    onSuccess: () => { qc.invalidateQueries(['group-docs', groupId]); setShowEdit(false); }
-  });
+  const editMut = useMutation({ mutationFn: ({ id, data }) => api.put(`/documents/${id}`, data), onSuccess: () => { qc.invalidateQueries(['group-docs', groupId]); setShowEdit(false); } });
+  const delMut  = useMutation({ mutationFn: id => api.delete(`/documents/${id}`), onSuccess: () => { qc.invalidateQueries(['group-docs', groupId]); setDetailDoc(null); } });
+  const starMut = useMutation({ mutationFn: id => api.patch(`/documents/${id}/star`, {}), onSuccess: () => qc.invalidateQueries(['group-docs', groupId]) });
+  const paidMut = useMutation({ mutationFn: id => api.patch(`/documents/${id}/paid`, {}), onSuccess: () => qc.invalidateQueries(['group-docs', groupId]) });
 
-  const delMut = useMutation({
-    mutationFn: id => api.delete(`/documents/${id}`),
-    onSuccess: () => qc.invalidateQueries(['group-docs', groupId])
-  });
+  const today = useMemo(() => { const d = new Date(); d.setHours(0,0,0,0); return d; }, []);
+  const overdueDocs = useMemo(() => docs.filter(d => d.due_date && !d.paid && new Date(d.due_date) < today), [docs, today]);
+  const soonDocs    = useMemo(() => docs.filter(d => d.due_date && !d.paid && new Date(d.due_date) >= today && Math.ceil((new Date(d.due_date) - today) / 86400000) <= 7), [docs, today]);
+  const pendingDocs = useMemo(() => docs.filter(d => d.due_date && !d.paid), [docs]);
+  const paidCount   = useMemo(() => docs.filter(d => d.paid).length, [docs]);
+  const catCounts = useMemo(() => {
+    const counts = {};
+    for (const k of GROUP_CAT_KEYS) counts[k] = 0;
+    for (const c of customCats) counts[c.name] = 0;
+    for (const d of docs) counts[d.category] = (counts[d.category] || 0) + 1;
+    return counts;
+  }, [docs, customCats]);
 
-  const starMut = useMutation({
-    mutationFn: id => api.patch(`/documents/${id}/star`, {}),
-    onSuccess: () => qc.invalidateQueries(['group-docs', groupId]),
-  });
-
-  const importanceMut = useMutation({
-    mutationFn: ({ id, importance }) => api.patch(`/documents/${id}/importance`, { importance }),
-    onSuccess: () => qc.invalidateQueries(['group-docs', groupId]),
-  });
-
-  // ── Filter + Sort ─────────────────────────────────────────────────────────
   const filtered = docs.filter(d => {
-    if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.filename?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.filename.toLowerCase().includes(search.toLowerCase())) return false;
     if (typeFilter && !matchesMime(d.mimetype, typeFilter)) return false;
+    if (subFilter && d.subcategory !== subFilter) return false;
+    if (dueFilter === 'overdue') return d.due_date && !d.paid && new Date(d.due_date) < today;
+    if (dueFilter === 'pending') return d.due_date && !d.paid;
+    if (dueFilter === 'paid')    return d.paid;
     return true;
   });
 
   const sortedFiltered = [...filtered]
-    .filter(d => {
-      if (importanceFilter === 'starred') return d.starred;
-      if (importanceFilter) return d.importance === importanceFilter;
-      return true;
-    })
+    .filter(d => importanceFilter === 'starred' ? d.starred : (importanceFilter ? d.importance === importanceFilter : true))
     .sort((a, b) => {
       if (sortBy === 'importance') {
         const order = { dringend: 0, wichtig: 1, normal: 2, archiv: 3 };
@@ -428,223 +595,270 @@ function DocumentsTab({ groupId }) {
       if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at);
       if (sortBy === 'name') return a.title.localeCompare(b.title);
       if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
+      if (sortBy === 'due') {
+        const da = a.due_date ? new Date(a.due_date) : new Date('9999-12-31');
+        const dbb = b.due_date ? new Date(b.due_date) : new Date('9999-12-31');
+        return da - dbb;
+      }
       return 0;
     });
 
-  const activeCatLabel = catFilter
-    ? (DOC_CATS.find(c => c.value === catFilter)?.label || customCats.find(c => c.name === catFilter)?.name || catFilter)
-    : null;
-
-  if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
+  const selectCat = val => { setCatFilter(val); setSubFilter(''); };
+  const openEditFromDetail = (doc) => {
+    setDetailDoc(null);
+    setEditDoc(doc);
+    setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0, due_date: doc.due_date || '', paid: !!doc.paid });
+    setShowEdit(true);
+  };
 
   return (
     <div className="space-y-5">
-
-      {/* Kopfzeile */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-sm text-slate-500">{docs.length} Dokument{docs.length !== 1 ? 'e' : ''} in dieser Gruppe</p>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button onClick={() => { setUploadError(''); setShowUpload(true); }}
           className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
-          <Upload size={15} /> Hochladen
+          <Upload size={16} /> Hochladen
         </button>
       </div>
 
-      {/* Suche */}
-      <div className="relative">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-        <input className="w-full pl-9 pr-3.5 py-2 text-sm rounded-xl" placeholder="Dokument suchen..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Stats */}
+      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        <StatCard icon={FolderOpen}    label="Gesamt"     value={docs.length}        color="#f97316" onClick={() => setDueFilter('')} active={!dueFilter} />
+        <StatCard icon={AlertTriangle} label="Überfällig" value={overdueDocs.length} color="#ef4444" onClick={() => setDueFilter(dueFilter === 'overdue' ? '' : 'overdue')} active={dueFilter === 'overdue'} />
+        <StatCard icon={CalIcon}       label="Ausstehend" value={pendingDocs.length} color="#f97316" onClick={() => setDueFilter(dueFilter === 'pending' ? '' : 'pending')} active={dueFilter === 'pending'} />
+        <StatCard icon={CheckCircle2}  label="Bezahlt"    value={paidCount}          color="#22c55e" onClick={() => setDueFilter(dueFilter === 'paid' ? '' : 'paid')}       active={dueFilter === 'paid'} />
       </div>
 
-      {/* Filter-Block */}
-      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '16px', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      {/* Warning */}
+      {(overdueDocs.length > 0 || soonDocs.length > 0) && (
+        <WarningBanner icon={BellRing} severity={overdueDocs.length > 0 ? 'critical' : 'warning'}
+          onClick={() => setDueFilter(overdueDocs.length > 0 ? 'overdue' : 'pending')}>
+          {overdueDocs.length > 0 && <strong style={{ color: '#ef4444' }}>{overdueDocs.length} überfällig</strong>}
+          {overdueDocs.length > 0 && soonDocs.length > 0 && <span style={{ color: '#475569' }}> · </span>}
+          {soonDocs.length > 0 && <span style={{ color: '#f97316', fontWeight: 600 }}>{soonDocs.length} fällig in 7 Tagen</span>}
+        </WarningBanner>
+      )}
 
-        {/* Dateityp */}
-        <div>
-          <p style={{ fontSize: '11px', color: '#475569', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Dateityp</p>
-          <div className="tab-scroll" style={{ gap: '6px' }}>
-            {DOC_FILE_TYPES.map(t => (
-              <DocPill key={t.value} active={typeFilter === t.value} onClick={() => setTypeFilter(t.value)}>{t.label}</DocPill>
-            ))}
-          </div>
+      {/* Kategorie-Cards */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Kategorie</p>
+          {!showNewCat && (
+            <button onClick={() => setShowNewCat(true)} style={{ fontSize: '11px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <Plus size={11} /> Neue Kategorie
+            </button>
+          )}
         </div>
-
-        <div style={{ borderTop: '1px solid #1e1e1e' }} />
-
-        {/* Kategorie */}
-        <div>
-          <p style={{ fontSize: '11px', color: '#475569', marginBottom: '6px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Kategorie</p>
-          <div className="tab-scroll" style={{ gap: '6px' }}>
-            {DOC_CATS.map(c => (
-              <DocPill key={c.value} active={catFilter === c.value} onClick={() => { setCatFilter(c.value); setSubFilter(''); }}>{c.label}</DocPill>
-            ))}
-            {customCats.map(cat => (
-              <DocPill key={cat.id} active={catFilter === cat.name}
-                onClick={() => { setCatFilter(cat.name); setSubFilter(''); }}
-                onDelete={() => delCatMut.mutate(cat.id)}
-              >{cat.icon} {cat.name}</DocPill>
-            ))}
-            {showCatInput ? (
-              <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                <input autoFocus placeholder="Name..." value={newCatName} onChange={e => setNewCatName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMut.mutate(newCatName.trim()); if (e.key === 'Escape') setShowCatInput(false); }}
-                  style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '110px' }} />
-                <button onClick={() => newCatName.trim() && addCatMut.mutate(newCatName.trim())} style={{ padding: '4px 8px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', cursor: 'pointer' }}>+</button>
-                <button onClick={() => setShowCatInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-              </div>
-            ) : (
-              <button onClick={() => setShowCatInput(true)} style={{ padding: '5px 12px', borderRadius: '8px', fontSize: '12px', color: '#64748b', background: 'transparent', border: '1px dashed #2a2a2a', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                + Kategorie
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Unterordner – nur wenn Kategorie gewählt */}
-        {catFilter && (
-          <>
-            <div style={{ borderTop: '1px solid #1e1e1e' }} />
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <p style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{activeCatLabel}</p>
-                <ChevronRight size={11} style={{ color: '#475569' }} />
-                <p style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Unterordner</p>
-              </div>
-              <div className="tab-scroll" style={{ gap: '6px' }}>
-                <DocPill active={subFilter === ''} onClick={() => setSubFilter('')}>Alle</DocPill>
-                {filterSubs.map(sub => (
-                  <DocPill key={sub.id} active={subFilter === sub.name}
-                    onClick={() => setSubFilter(sub.name)}
-                    onDelete={() => delSubMut.mutate(sub.id)}
-                  >{sub.name}</DocPill>
-                ))}
-                {showSubInput ? (
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
-                    <input autoFocus placeholder="Unterordner..." value={newSubName} onChange={e => setNewSubName(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && newSubName.trim()) addSubMut.mutate({ name: newSubName.trim(), parent: catFilter }); if (e.key === 'Escape') setShowSubInput(false); }}
-                      style={{ padding: '4px 8px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '130px' }} />
-                    <button onClick={() => newSubName.trim() && addSubMut.mutate({ name: newSubName.trim(), parent: catFilter })} style={{ padding: '4px 8px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', cursor: 'pointer' }}>+</button>
-                    <button onClick={() => setShowSubInput(false)} style={{ color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px' }}>✕</button>
-                  </div>
-                ) : (
-                  <button onClick={() => setShowSubInput(true)} style={{ padding: '5px 12px', borderRadius: '8px', fontSize: '12px', color: '#64748b', background: 'transparent', border: '1px dashed #2a2a2a', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                    + Unterordner
-                  </button>
-                )}
-              </div>
+        <div className="tab-scroll" style={{ gap: '8px' }}>
+          <CategoryCard icon={FolderOpen} label="Alle" color="#f97316" count={docs.length} active={!catFilter} onClick={() => selectCat('')} />
+          {GROUP_CAT_KEYS.map(key => {
+            const cfg = GROUP_CAT_CONFIG[key];
+            return <CategoryCard key={key} icon={cfg.icon} label={cfg.label} color={cfg.color} count={catCounts[key] || 0} active={catFilter === key} onClick={() => selectCat(key)} />;
+          })}
+          {customCats.map(cat => (
+            <CategoryCard key={cat.id} icon={Folder} label={cat.name} color={cat.color || '#f97316'}
+              count={catCounts[cat.name] || 0} active={catFilter === cat.name} onClick={() => selectCat(cat.name)}
+              onDelete={() => delCatMut.mutate(cat.id)} />
+          ))}
+          {showNewCat && (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+              <input autoFocus placeholder="Name..." value={newCatName} onChange={e => setNewCatName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && newCatName.trim()) addCatMut.mutate(newCatName.trim()); if (e.key === 'Escape') setShowNewCat(false); }}
+                style={{ padding: '8px 12px', borderRadius: '10px', fontSize: '13px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '130px' }} />
+              <button onClick={() => newCatName.trim() && addCatMut.mutate(newCatName.trim())} style={{ padding: '8px 10px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>+</button>
+              <button onClick={() => setShowNewCat(false)} style={{ padding: '8px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer' }}><X size={14} /></button>
             </div>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Sort-Bar */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-        <ArrowDownUp size={13} style={{ color: '#475569', flexShrink: 0 }} />
-        <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sortierung:</span>
-        {[
-          { key: 'importance', label: 'Wichtigkeit' },
-          { key: 'date',       label: 'Datum' },
-          { key: 'name',       label: 'Name' },
-          { key: 'size',       label: 'Größe' },
-        ].map(s => (
-          <button key={s.key} onClick={() => setSortBy(s.key)} style={{
-            padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
-            cursor: 'pointer', transition: 'all 0.15s',
-            background: sortBy === s.key ? '#f97316' : 'transparent',
-            color: sortBy === s.key ? '#fff' : '#64748b',
-            border: sortBy === s.key ? '1px solid #f97316' : '1px solid #2a2a2a',
-          }}>{s.label}</button>
-        ))}
+      {/* Unterordner */}
+      {catFilter && (
+        <div className="tab-scroll" style={{ gap: '6px', alignItems: 'center' }}>
+          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, marginRight: '4px', flexShrink: 0 }}>UNTERORDNER:</span>
+          <button onClick={() => setSubFilter('')} style={{
+            padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+            background: !subFilter ? '#f97316' : 'transparent', color: !subFilter ? '#fff' : '#94a3b8',
+            border: !subFilter ? '1px solid #f97316' : '1px solid #2a2a2a',
+          }}>Alle</button>
+          {filterSubs.map(sub => (
+            <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+              <button onClick={() => setSubFilter(sub.name)} style={{
+                padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer',
+                background: subFilter === sub.name ? '#f97316' : 'transparent', color: subFilter === sub.name ? '#fff' : '#94a3b8',
+                border: subFilter === sub.name ? '1px solid #f97316' : '1px solid #2a2a2a',
+              }}>{sub.name}</button>
+              <button onClick={() => delSubMut.mutate(sub.id)} style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}><X size={11} /></button>
+            </div>
+          ))}
+          {showNewSub ? (
+            <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
+              <input autoFocus placeholder="z.B. Versicherungspolice..." value={newSubName} onChange={e => setNewSubName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && newSubName.trim()) addSubMut.mutate({ name: newSubName.trim(), parent: catFilter }); if (e.key === 'Escape') setShowNewSub(false); }}
+                style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '12px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none', width: '160px' }} />
+              <button onClick={() => newSubName.trim() && addSubMut.mutate({ name: newSubName.trim(), parent: catFilter })} style={{ padding: '5px 10px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '12px', cursor: 'pointer' }}>+</button>
+            </div>
+          ) : (
+            <button onClick={() => setShowNewSub(true)} style={{ padding: '5px 12px', borderRadius: '8px', fontSize: '12px', color: '#64748b', background: 'transparent', border: '1px dashed #2a2a2a', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              + Unterordner
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Smart-Bar */}
+      <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+            <input className="w-full pl-9 pr-3 py-2 text-sm rounded-lg" placeholder="Dokument suchen..."
+              value={search} onChange={e => setSearch(e.target.value)}
+              style={{ background: '#0a0a0a', border: '1px solid #1e1e1e' }} />
+          </div>
+          <div style={{ display: 'flex', background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: '10px', padding: '2px' }}>
+            <button onClick={() => setViewMode('list')} style={{ padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', background: viewMode === 'list' ? '#1e1e1e' : 'transparent', color: viewMode === 'list' ? '#f97316' : '#64748b', border: 'none', cursor: 'pointer' }}><ListIcon size={14} /></button>
+            <button onClick={() => setViewMode('grid')} style={{ padding: '6px 10px', borderRadius: '8px', display: 'flex', alignItems: 'center', background: viewMode === 'grid' ? '#1e1e1e' : 'transparent', color: viewMode === 'grid' ? '#f97316' : '#64748b', border: 'none', cursor: 'pointer' }}><LayoutGrid size={14} /></button>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <ArrowDownUp size={12} color="#64748b" />
+            <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+              style={{ background: '#0a0a0a', border: '1px solid #1e1e1e', color: '#cbd5e1', padding: '5px 8px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+              <option value="importance">Wichtigkeit</option>
+              <option value="due">Fälligkeit</option>
+              <option value="date">Datum</option>
+              <option value="name">Name</option>
+              <option value="size">Größe</option>
+            </select>
+          </div>
+          <div style={{ width: '1px', height: '14px', background: '#1e1e1e' }} />
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            style={{ background: '#0a0a0a', border: '1px solid #1e1e1e', color: '#cbd5e1', padding: '5px 8px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}>
+            {GROUP_FILE_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
+          <div style={{ width: '1px', height: '14px', background: '#1e1e1e' }} />
+          {[
+            { key: '',         label: 'Alle' },
+            { key: 'starred',  label: '⭐ Favoriten' },
+            { key: 'dringend', label: 'Dringend' },
+            { key: 'wichtig',  label: 'Wichtig' },
+            { key: 'archiv',   label: 'Archiv' },
+          ].map(f => (
+            <button key={f.key} onClick={() => setImpFilter(f.key)} style={{
+              padding: '4px 10px', borderRadius: '7px', fontSize: '11px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+              background: importanceFilter === f.key ? 'rgba(249,115,22,0.15)' : 'transparent',
+              color: importanceFilter === f.key ? '#f97316' : '#64748b',
+              border: `1px solid ${importanceFilter === f.key ? 'rgba(249,115,22,0.4)' : '#1e1e1e'}`,
+            }}>{f.label}</button>
+          ))}
+        </div>
       </div>
 
-      {/* Schnellfilter-Chips */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-        {[
-          { key: '',        label: 'Alle' },
-          { key: 'starred', label: 'Favoriten' },
-          { key: 'dringend',label: 'Dringend' },
-          { key: 'wichtig', label: 'Wichtig' },
-          { key: 'archiv',  label: 'Archiv' },
-        ].map(f => (
-          <button key={f.key} onClick={() => setImportanceFilter(f.key)} style={{
-            padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
-            cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
-            background: importanceFilter === f.key ? 'rgba(249,115,22,0.15)' : 'transparent',
-            color: importanceFilter === f.key ? '#f97316' : '#64748b',
-            border: importanceFilter === f.key ? '1px solid rgba(249,115,22,0.4)' : '1px solid #2a2a2a',
-          }}>{f.label}</button>
-        ))}
-      </div>
-
-      {/* Dokumenten-Liste */}
-      {sortedFiltered.length === 0 ? (
-        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-12 text-center">
-          <FileText size={40} className="text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400">Keine Dokumente gefunden</p>
-          <button onClick={() => setShowUpload(true)} className="mt-3 text-sm text-orange-400 hover:text-orange-500">Erstes Dokument hochladen</button>
+      {/* Liste / Grid / Empty */}
+      {isLoading ? (
+        <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>
+      ) : sortedFiltered.length === 0 ? (
+        <EmptyState icon={FolderOpen} title="Keine Dokumente"
+          message="Lade das erste Gruppen-Dokument hoch"
+          actionLabel="Hochladen" onAction={() => setShowUpload(true)} />
+      ) : viewMode === 'grid' ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '10px' }}>
+          {sortedFiltered.map(doc => {
+            const cat = GROUP_CAT_CONFIG[doc.category] || GROUP_CAT_CONFIG.other;
+            const CatIcon = cat.icon;
+            const urg = getDocDueUrgency(doc.due_date, doc.paid);
+            const imp = doc.importance || 'normal';
+            const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
+            return (
+              <div key={doc.id} onClick={() => setDetailDoc(doc)}
+                style={{
+                  background: '#141414', border: `1px solid ${impCfg.border === 'transparent' ? '#1e1e1e' : impCfg.border}55`,
+                  borderRadius: '12px', padding: '14px', cursor: 'pointer', transition: 'all 0.15s',
+                  display: 'flex', flexDirection: 'column', gap: '10px', opacity: imp === 'archiv' ? 0.6 : 1,
+                }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = '#f97316'}
+                onMouseLeave={e => e.currentTarget.style.borderColor = impCfg.border === 'transparent' ? '#1e1e1e' : `${impCfg.border}55`}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '9px', background: `${cat.color}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <CatIcon size={16} color={cat.color} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: '13px', color: '#fff', fontWeight: 600, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</p>
+                    <p style={{ fontSize: '10px', color: '#64748b', margin: '2px 0 0', textTransform: 'uppercase' }}>{cat.label}</p>
+                  </div>
+                  {doc.starred ? <Star size={14} fill="#f59e0b" color="#f59e0b" /> : null}
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+                  {urg && <span style={{ padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 600, background: urg.bg, color: urg.color, border: `1px solid ${urg.border}66` }}>{urg.label}</span>}
+                  {imp !== 'normal' && <span style={{ padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 600, background: impCfg.bg, color: impCfg.color, border: `1px solid ${impCfg.border}` }}>{impCfg.label}</span>}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '10px', color: '#475569', borderTop: '1px solid #1e1e1e', paddingTop: '8px' }}>
+                  <span>{formatSize(doc.size)}</span>
+                  {doc.attachment_count > 0 && <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}><Paperclip size={10} /> {doc.attachment_count}</span>}
+                  <span>{format(new Date(doc.created_at), 'd. MMM', { locale: de })}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       ) : (
-        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl overflow-hidden">
-          <div className="divide-y divide-[#2a2a2a]">
+        <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
+          <div style={{ padding: '8px 16px 6px', borderBottom: '1px solid #1e1e1e' }}>
+            <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600 }}>{sortedFiltered.length} Dokument{sortedFiltered.length !== 1 ? 'e' : ''}</span>
+          </div>
+          <div className="divide-y divide-border">
             {sortedFiltered.map(doc => {
-              const imp    = doc.importance || 'normal';
-              const impCfg = DOC_IMPORTANCE[imp] || DOC_IMPORTANCE.normal;
+              const cat = GROUP_CAT_CONFIG[doc.category] || GROUP_CAT_CONFIG.other;
+              const CatIcon = cat.icon;
+              const imp = doc.importance || 'normal';
+              const impCfg = IMPORTANCE[imp] || IMPORTANCE.normal;
+              const urg = getDocDueUrgency(doc.due_date, doc.paid);
               return (
-                <div key={doc.id}
-                  className="flex items-center group"
+                <div key={doc.id} className="group" onClick={() => setDetailDoc(doc)}
                   style={{
-                    gap: '3px',
+                    display: 'flex', alignItems: 'center', gap: '10px',
                     borderLeft: `3px solid ${impCfg.border}`,
                     background: imp === 'archiv' ? 'rgba(15,23,42,0.5)' : undefined,
                     opacity: imp === 'archiv' ? 0.6 : 1,
-                    padding: '10px 12px 10px 10px',
-                    transition: 'background 0.15s',
+                    padding: '12px 14px 12px 12px', cursor: 'pointer', transition: 'background 0.15s',
                   }}>
-                  {/* File icon */}
-                  <div className="w-9 h-9 bg-[#161616] rounded-lg flex items-center justify-center shrink-0" style={{ marginRight: '6px' }}>{fileIcon(doc.mimetype)}</div>
-                  {/* Title + meta */}
-                  <div style={{ flex: 1, minWidth: 0, padding: '0 6px' }}>
-                    <p className="text-sm font-medium text-white truncate">{doc.title}</p>
-                    <p className="text-xs text-slate-500 truncate">
-                      {doc.uploader_name && <span className="hidden sm:inline">{doc.uploader_name} · </span>}
-                      {formatSize(doc.size)}
-                      <span className="hidden md:inline"> · {format(new Date(doc.created_at), 'd. MMM yyyy', { locale: de })}</span>
+                  <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: `${cat.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <CatIcon size={16} color={cat.color} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <p style={{ fontSize: '14px', fontWeight: 500, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</p>
+                      {doc.attachment_count > 0 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', background: 'rgba(249,115,22,0.12)', color: '#f97316', borderRadius: '5px', fontSize: '10px', fontWeight: 600, flexShrink: 0 }}>
+                          <Paperclip size={9} /> {doc.attachment_count}
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ color: cat.color }}>{cat.label}</span>
+                      {doc.subcategory && <span> · {doc.subcategory}</span>}
+                      {doc.uploader_name && <span> · von {doc.uploader_name}</span>}
+                      <span className="hidden sm:inline"> · {formatSize(doc.size)}</span>
                     </p>
                   </div>
-                  {/* Category badge */}
-                  {(doc.category || doc.subcategory) && (
-                    <span className="text-xs px-2 py-0.5 rounded-md bg-orange-500/10 text-orange-400 hidden sm:inline" style={{ flexShrink: 0 }}>
-                      {doc.category}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
+                  {urg && (
+                    <button onClick={(e) => { e.stopPropagation(); paidMut.mutate(doc.id); }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: urg.bg, color: urg.color, border: `1px solid ${urg.border}66`, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                      {doc.paid ? <CheckCircle2 size={11} /> : <CalIcon size={11} />} {urg.label}
+                    </button>
+                  )}
+                  {imp !== 'normal' && (
+                    <span style={{ padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: impCfg.bg, color: impCfg.color, border: `1px solid ${impCfg.border}`, flexShrink: 0 }}>
+                      {impCfg.label}
                     </span>
                   )}
-                  {/* Importance badge */}
-                  {imp !== 'normal' && (
-                    <button
-                      onClick={() => {
-                        const levels = ['normal', 'wichtig', 'dringend', 'archiv'];
-                        const next = levels[(levels.indexOf(imp) + 1) % levels.length];
-                        importanceMut.mutate({ id: doc.id, importance: next });
-                      }}
-                      title="Wichtigkeit ändern"
-                      style={{
-                        padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
-                        background: impCfg.bg, color: impCfg.color,
-                        border: `1px solid ${impCfg.border}`,
-                        cursor: 'pointer', flexShrink: 0,
-                      }}
-                    >{impCfg.label}</button>
-                  )}
-                  {/* Star */}
-                  <button
-                    onClick={() => starMut.mutate(doc.id)}
-                    title={doc.starred ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: doc.starred ? '#f59e0b' : '#334155', display: 'flex', padding: '4px', flexShrink: 0, transition: 'color 0.15s' }}>
+                  <button onClick={(e) => { e.stopPropagation(); starMut.mutate(doc.id); }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: doc.starred ? '#f59e0b' : '#334155', display: 'flex', padding: '4px', flexShrink: 0 }}>
                     <Star size={14} fill={doc.starred ? '#f59e0b' : 'none'} />
                   </button>
-                  {/* Actions */}
-                  <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                     <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
-                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0 }); setShowEdit(true); }}
-                      className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
+                    <button onClick={() => setDetailDoc(doc)} className="p-1.5 text-slate-500 hover:text-orange-400 rounded-lg transition-colors"><Eye size={14} /></button>
                     <button onClick={() => delMut.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
                 </div>
@@ -654,80 +868,143 @@ function DocumentsTab({ groupId }) {
         </div>
       )}
 
-      {/* Upload Modal */}
-      <Modal open={showUpload} onClose={() => { setShowUpload(false); setUploadError(''); }} title="Dokument hochladen">
+      {/* Detail-Modal */}
+      <GroupDocDetailModal open={!!detailDoc} doc={detailDoc} onClose={() => setDetailDoc(null)}
+        onEdit={openEditFromDetail}
+        onDelete={(id) => { if (confirm('Dokument und alle Anhänge löschen?')) delMut.mutate(id); }} />
+
+      {/* Upload-Modal */}
+      <Modal open={showUpload} onClose={() => setShowUpload(false)} title="Dokument hochladen" size="md">
         <div className="space-y-4">
           <div onClick={() => fileRef.current?.click()}
-            className="border-2 border-dashed border-[#2a2a2a] hover:border-orange-500/50 rounded-xl p-6 text-center cursor-pointer transition-colors">
+            className="border-2 border-dashed border-border hover:border-orange-500/50 rounded-xl p-6 text-center cursor-pointer transition-colors">
             <Upload size={24} className="text-slate-500 mx-auto mb-2" />
-            {selectedFile
-              ? <p className="text-sm text-orange-400 font-medium">{selectedFile.name} ({formatSize(selectedFile.size)})</p>
-              : <p className="text-sm text-slate-500">Klicken zum Auswählen <span className="text-orange-400">oder Datei ziehen</span></p>}
-            <input ref={fileRef} type="file" className="hidden" onChange={e => { const f = e.target.files[0]; if (f) { setSelectedFile(f); setUploadForm(p => ({ ...p, title: f.name.replace(/\.[^.]+$/, '') })); } }} />
-          </div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
-            <input className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} /></div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
-            <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category} onChange={e => setUploadForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
-              {DOC_CATS.filter(c => c.value).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
-            </select></div>
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <label className="text-sm text-slate-400">Unterordner <span className="text-slate-600 text-xs">(optional)</span></label>
-              <button onClick={() => setShowModalSub(v => !v)} style={{ fontSize: '11px', color: '#64748b', cursor: 'pointer', background: 'none', border: 'none' }}>+ Neuer Unterordner</button>
-            </div>
-            {showModalSub && (
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-                <input autoFocus placeholder={`Unterordner für ${DOC_CATS.find(c => c.value === uploadForm.category)?.label || uploadForm.category}...`}
-                  value={modalSubName} onChange={e => setModalSubName(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && modalSubName.trim()) addSubMut.mutate({ name: modalSubName.trim(), parent: uploadForm.category }); }}
-                  style={{ flex: 1, padding: '7px 10px', borderRadius: '8px', fontSize: '13px', background: '#1e1e1e', border: '1px solid #f97316', color: '#fff', outline: 'none' }} />
-                <button onClick={() => modalSubName.trim() && addSubMut.mutate({ name: modalSubName.trim(), parent: uploadForm.category })}
-                  style={{ padding: '7px 12px', background: '#f97316', color: '#fff', border: 'none', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>+</button>
+            {selectedFiles.length > 0 ? (
+              <div>
+                <p className="text-sm text-orange-400 font-medium">{selectedFiles.length} Datei{selectedFiles.length !== 1 ? 'en' : ''} ausgewählt</p>
+                <p className="text-xs text-slate-500 mt-1">{selectedFiles[0].name}{selectedFiles.length > 1 ? ` + ${selectedFiles.length - 1} Anhang${selectedFiles.length > 2 ? 'e' : ''}` : ''}</p>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm text-slate-300 font-medium">Mehrere Dateien wählbar</p>
+                <p className="text-xs text-slate-500 mt-1">Erste Datei = Hauptdokument · Rest = Anhänge</p>
               </div>
             )}
-            <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.subcategory} onChange={e => setUploadForm(f => ({ ...f, subcategory: e.target.value }))}>
+            <input ref={fileRef} type="file" multiple className="hidden"
+              onChange={e => {
+                const files = Array.from(e.target.files || []);
+                if (files.length) {
+                  setSelectedFiles(files);
+                  setUploadForm(p => ({ ...p, title: p.title || files[0].name.replace(/\.[^.]+$/, '') }));
+                }
+              }} />
+          </div>
+
+          {selectedFiles.length > 0 && (
+            <div style={{ background: '#0a0a0a', border: '1px solid #1e1e1e', borderRadius: '10px', padding: '8px', maxHeight: '120px', overflowY: 'auto' }}>
+              {selectedFiles.map((f, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '4px 6px', fontSize: '12px' }}>
+                  {fileIcon(f.type)}
+                  <span style={{ color: i === 0 ? '#f97316' : '#94a3b8', fontWeight: i === 0 ? 600 : 400, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {i === 0 && '⭐ '} {f.name}
+                  </span>
+                  <span style={{ color: '#475569', fontSize: '10px' }}>{formatSize(f.size)}</span>
+                  <button onClick={() => setSelectedFiles(prev => prev.filter((_, idx) => idx !== i))}
+                    style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: '2px' }}><X size={12} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
+            <input className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.title} onChange={e => setUploadForm(f => ({ ...f, title: e.target.value }))} /></div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
+              <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.category}
+                onChange={e => setUploadForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
+                {GROUP_CAT_KEYS.map(k => <option key={k} value={k}>{GROUP_CAT_CONFIG[k].label}</option>)}
+                {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+              </select>
+            </div>
+            <div><label className="block text-sm text-slate-400 mb-1.5">Wichtigkeit</label>
+              <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.importance}
+                onChange={e => setUploadForm(f => ({ ...f, importance: e.target.value }))}>
+                {Object.entries(IMPORTANCE).map(([k, cfg]) => <option key={k} value={k}>{cfg.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm text-slate-400 mb-1.5">Unterordner <span className="text-slate-600 text-xs">(optional)</span></label>
+            <select className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.subcategory}
+              onChange={e => setUploadForm(f => ({ ...f, subcategory: e.target.value }))}>
               <option value="">— Kein Unterordner —</option>
               {uploadSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
             </select>
           </div>
+
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
-            <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description} onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
+            <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description}
+              onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <CalIcon size={13} /> Fällig am <span className="text-slate-600 text-xs">(optional)</span>
+            </label>
+              <input type="date" className="w-full px-3.5 py-2.5 text-sm" value={uploadForm.due_date}
+                onChange={e => setUploadForm(f => ({ ...f, due_date: e.target.value }))} /></div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '8px' }}>
+                <input type="checkbox" checked={uploadForm.paid} onChange={e => setUploadForm(f => ({ ...f, paid: e.target.checked }))}
+                  style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
+                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bereits bezahlt</span>
+              </label>
+            </div>
+          </div>
+
           {uploadError && <p className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{uploadError}</p>}
+
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => { setShowUpload(false); setUploadError(''); }} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
-            <button onClick={() => uploadMut.mutate()} disabled={!selectedFile || uploadMut.isPending}
+            <button onClick={() => setShowUpload(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
+            <button onClick={() => uploadMut.mutate()} disabled={selectedFiles.length === 0 || uploadMut.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm disabled:opacity-50">
-              {uploadMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Hochladen
+              {uploadMut.isPending ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+              Hochladen{selectedFiles.length > 1 ? ` (+${selectedFiles.length - 1} Anhänge)` : ''}
             </button>
           </div>
         </div>
       </Modal>
 
-      {/* Bearbeiten Modal */}
-      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Dokument bearbeiten" size="sm">
+      {/* Edit-Modal */}
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} title="Dokument bearbeiten" size="md">
         <div className="space-y-4">
           <div><label className="block text-sm text-slate-400 mb-1.5">Titel</label>
             <input className="w-full px-3.5 py-2.5 text-sm" value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} /></div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
-            <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category} onChange={e => setEditForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
-              {DOC_CATS.filter(c => c.value).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-              {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
-            </select></div>
-          <div><label className="block text-sm text-slate-400 mb-1.5">Unterordner</label>
-            <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.subcategory} onChange={e => setEditForm(f => ({ ...f, subcategory: e.target.value }))}>
-              <option value="">— Kein Unterordner —</option>
-              {editSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
-            </select></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-sm text-slate-400 mb-1.5">Kategorie</label>
+              <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.category}
+                onChange={e => setEditForm(f => ({ ...f, category: e.target.value, subcategory: '' }))}>
+                {GROUP_CAT_KEYS.map(k => <option key={k} value={k}>{GROUP_CAT_CONFIG[k].label}</option>)}
+                {customCats.map(cat => <option key={cat.id} value={cat.name}>{cat.name}</option>)}
+              </select>
+            </div>
+            <div><label className="block text-sm text-slate-400 mb-1.5">Unterordner</label>
+              <select className="w-full px-3.5 py-2.5 text-sm" value={editForm.subcategory}
+                onChange={e => setEditForm(f => ({ ...f, subcategory: e.target.value }))}>
+                <option value="">— Kein Unterordner —</option>
+                {editSubs.map(sub => <option key={sub.id} value={sub.name}>{sub.name}</option>)}
+              </select>
+            </div>
+          </div>
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
-            <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
+            <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={editForm.description}
+              onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} /></div>
           <div>
             <label className="block text-sm text-slate-400 mb-1.5">Wichtigkeit</label>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              {Object.entries(DOC_IMPORTANCE).map(([key, cfg]) => (
-                <button key={key}
-                  onClick={() => setEditForm(f => ({ ...f, importance: key }))}
+              {Object.entries(IMPORTANCE).map(([key, cfg]) => (
+                <button key={key} onClick={() => setEditForm(f => ({ ...f, importance: key }))}
                   style={{
                     padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600,
                     cursor: 'pointer', border: `1px solid ${editForm.importance === key ? cfg.color : '#2a2a2a'}`,
@@ -735,6 +1012,20 @@ function DocumentsTab({ groupId }) {
                     color: editForm.importance === key ? cfg.color : '#64748b',
                   }}>{cfg.label}</button>
               ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div><label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
+              <CalIcon size={13} /> Fällig am
+            </label>
+              <input type="date" className="w-full px-3.5 py-2.5 text-sm" value={editForm.due_date}
+                onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))} /></div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '8px' }}>
+                <input type="checkbox" checked={editForm.paid} onChange={e => setEditForm(f => ({ ...f, paid: e.target.checked }))}
+                  style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
+                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bezahlt</span>
+              </label>
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -749,7 +1040,6 @@ function DocumentsTab({ groupId }) {
     </div>
   );
 }
-
 // ════════════════════════════════════════════════════════════════════════════
 // TAB: KALENDER
 // ════════════════════════════════════════════════════════════════════════════

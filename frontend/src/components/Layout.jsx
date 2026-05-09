@@ -249,9 +249,9 @@ export default function Layout() {
           WebkitOverflowScrolling: 'touch',
         }}>
           <div style={{
-            padding: '16px',
+            padding: '20px 24px',
             paddingBottom: '100px',   /* Platz für BottomNav auf Mobil */
-            maxWidth: '1280px',
+            maxWidth: '1600px',
             margin: '0 auto',
             width: '100%',
             boxSizing: 'border-box',
