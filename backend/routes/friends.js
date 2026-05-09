@@ -205,25 +205,29 @@ const RESOURCE_TABLES = {
 
 // Liste aller Freunde die mit mir was teilen (Kategorie-Zugriff oder Einzel-Items)
 router.get('/sharers', auth, (req, res) => {
-  const sharers = db.prepare(`
-    SELECT DISTINCT u.id as user_id, u.username, u.email, u.avatar
-    FROM users u
-    WHERE u.id IN (
-      SELECT owner_id FROM friend_category_access WHERE friend_id = ?
-      UNION
-      SELECT owner_id FROM friend_shares WHERE friend_id = ?
-    )
-    ORDER BY u.username
-  `).all(req.user.id, req.user.id);
+  // Owner-IDs sammeln (zwei separate Queries, dann zusammenführen)
+  const fromCat = db.prepare('SELECT DISTINCT owner_id FROM friend_category_access WHERE friend_id = ?').all(req.user.id).map(r => r.owner_id);
+  const fromShares = db.prepare('SELECT DISTINCT owner_id FROM friend_shares WHERE friend_id = ?').all(req.user.id).map(r => r.owner_id);
+  const allOwnerIds = [...new Set([...fromCat, ...fromShares])];
 
-  const result = sharers.map(s => {
+  console.log('[friends/sharers]', { user: req.user.id, fromCat, fromShares, allOwnerIds });
+
+  if (allOwnerIds.length === 0) return res.json([]);
+
+  // User-Daten einzeln abfragen (vermeidet IN-Liste-Probleme)
+  const result = allOwnerIds.map(ownerId => {
+    const u = db.prepare('SELECT id as user_id, username, email, avatar FROM users WHERE id = ?').get(ownerId);
+    if (!u) return null;
     const catAccess = db.prepare('SELECT resource_type FROM friend_category_access WHERE owner_id = ? AND friend_id = ?')
-      .all(s.user_id, req.user.id).map(r => r.resource_type);
+      .all(ownerId, req.user.id).map(r => r.resource_type);
     const itemTypes = db.prepare('SELECT DISTINCT resource_type FROM friend_shares WHERE owner_id = ? AND friend_id = ?')
-      .all(s.user_id, req.user.id).map(r => r.resource_type);
+      .all(ownerId, req.user.id).map(r => r.resource_type);
     const all = [...new Set([...catAccess, ...itemTypes])];
-    return { ...s, categories: all, full_access: catAccess };
-  });
+    return { ...u, categories: all, full_access: catAccess };
+  }).filter(Boolean);
+
+  // Sortieren
+  result.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
   res.json(result);
 });
 

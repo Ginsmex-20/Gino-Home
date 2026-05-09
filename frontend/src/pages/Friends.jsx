@@ -34,7 +34,10 @@ function FriendPermissions({ friendId, friendUsername }) {
       setError(err?.error || err?.message || 'Konnte nicht speichern');
       setTimeout(() => setError(''), 4000);
     },
-    onSettled: () => qc.invalidateQueries({ queryKey: ['friend-cat-access', friendId] }),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ['friend-cat-access', friendId] });
+      qc.invalidateQueries({ queryKey: ['friend-sharers'] }); // Sidebar/Kategorien refreshen
+    },
   });
   const set = new Set(granted);
 

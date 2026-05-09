@@ -55,6 +55,8 @@ function SharersSection({ onClose, collapsed }) {
   const { data: sharers = [] } = useQuery({
     queryKey: ['friend-sharers'],
     queryFn:  () => api.get('/friends/sharers'),
+    refetchOnMount: 'always',
+    refetchInterval: 30000, // alle 30s nachladen damit neue Freigaben auftauchen
   });
 
   const toggle   = id   => setExpanded(e => ({ ...e, [id]: !e[id] }));
