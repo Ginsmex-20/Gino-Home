@@ -1,16 +1,28 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, Plus, Trash2, UserPlus, UserMinus, Crown, Home, Briefcase, Star,
   Loader2, Copy, RefreshCw, Hash, LogIn, CheckSquare, FileText, Calendar,
-  DollarSign, ArrowLeft, MessageSquare, Send, TrendingUp, TrendingDown
+  DollarSign, ArrowLeft, MessageSquare, Send, TrendingUp, TrendingDown,
+  Layers
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import Modal from '../components/Modal';
 import api from '../api/client';
 import useAuth from '../stores/auth';
+import { StatCard, CategoryCard, PageHeader, EmptyState } from '../components/ui';
 
+/* ════════════════════════════════════════════════════════════════════
+   GRUPPEN-TYPEN KONFIGURATION
+   ════════════════════════════════════════════════════════════════════ */
+const TYPE_CONFIG = {
+  household: { label: 'Haushalt',  icon: Home,      color: '#22c55e' },
+  work:      { label: 'Arbeit',    icon: Briefcase, color: '#3b82f6' },
+  general:   { label: 'Allgemein', icon: Star,      color: '#f97316' },
+};
+
+// Backwards-Compat Helpers
 const typeIcons = { household: Home, work: Briefcase, general: Star };
 const typeLabels = { household: 'Haushalt', work: 'Arbeit', general: 'Allgemein' };
 const typeBg = {
@@ -21,27 +33,54 @@ const typeBg = {
 
 const statusColors = { todo: 'text-slate-400', in_progress: 'text-blue-400', done: 'text-green-400' };
 
-// ── Gruppen-Karte ────────────────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════════════════
+   GRUPPEN-KARTE — modernes Design
+   ════════════════════════════════════════════════════════════════════ */
 function GroupCard({ group, onSelect }) {
-  const Icon = typeIcons[group.type] || Star;
+  const cfg = TYPE_CONFIG[group.type] || TYPE_CONFIG.general;
+  const Icon = cfg.icon;
+  const [hov, setHov] = useState(false);
+
   return (
     <div onClick={() => onSelect(group)}
-      className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-5 cursor-pointer transition-all hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5 group">
-      <div className="flex items-center gap-4">
-        <div className={`w-12 h-12 rounded-xl ${typeBg[group.type]?.split(' ')[0] || 'bg-orange-500/10'} flex items-center justify-center shrink-0`}>
-          <Icon size={22} className={typeBg[group.type]?.split(' ')[1] || 'text-orange-500'} />
+      onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
+      style={{
+        background: '#141414',
+        border: `1px solid ${hov ? cfg.color + '55' : '#1e1e1e'}`,
+        borderRadius: '14px', padding: '14px',
+        cursor: 'pointer', transition: 'all 0.15s',
+        display: 'flex', flexDirection: 'column', gap: '12px',
+      }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+        {/* Avatar */}
+        <div style={{
+          width: 48, height: 48, borderRadius: '12px', flexShrink: 0,
+          background: `linear-gradient(135deg, ${cfg.color}33, ${cfg.color}1a)`,
+          border: `1px solid ${cfg.color}33`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '20px', fontWeight: 700, color: cfg.color,
+        }}>
+          {group.name[0].toUpperCase()}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-semibold text-white group-hover:text-orange-400 transition-colors">{group.name}</p>
-          {group.description && <p className="text-sm text-slate-400 mt-0.5 truncate">{group.description}</p>}
-          <div className="flex items-center gap-2 mt-2">
-            <span className={`text-xs px-2 py-0.5 rounded-md font-medium ${typeBg[group.type] || 'bg-orange-500/10 text-orange-500'}`}>
-              {typeLabels[group.type]}
-            </span>
-            <span className="text-xs text-slate-500 flex items-center gap-1"><Users size={11} />{group.member_count} Mitglieder</span>
-          </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, color: '#fff', fontWeight: 600, fontSize: '15px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.name}</p>
+          {group.description && (
+            <p style={{ margin: '3px 0 0', color: '#64748b', fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{group.description}</p>
+          )}
         </div>
-        <ArrowLeft size={16} className="text-slate-600 group-hover:text-orange-500 rotate-180 transition-colors" />
+        <span style={{
+          padding: '3px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: 600,
+          background: `${cfg.color}1a`, color: cfg.color, border: `1px solid ${cfg.color}33`,
+          display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0,
+        }}>
+          <Icon size={10} /> {cfg.label}
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #1e1e1e', paddingTop: '10px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8' }}>
+          <Users size={12} /> {group.member_count} {group.member_count === 1 ? 'Mitglied' : 'Mitglieder'}
+        </span>
+        <ArrowLeft size={14} color={hov ? cfg.color : '#475569'} style={{ transform: 'rotate(180deg)', transition: 'color 0.15s' }} />
       </div>
     </div>
   );
@@ -614,6 +653,7 @@ export default function Groups() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [error, setError] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
 
   const { data: groups = [], isLoading } = useQuery({ queryKey: ['groups'], queryFn: () => api.get('/groups') });
   const { data: members = [] } = useQuery({
@@ -673,25 +713,50 @@ export default function Groups() {
 
   // ── Gruppen-Detailansicht ─────────────────────────────────────────────────
   if (selected) {
+    const cfg = TYPE_CONFIG[selected.type] || TYPE_CONFIG.general;
+    const TypeIcon = cfg.icon;
     return (
       <div className="space-y-5">
-        {/* Header */}
-        <div className="flex items-center gap-3">
+        {/* Hero-Header mit Gradient */}
+        <div style={{
+          background: `linear-gradient(135deg, ${cfg.color}1a, ${cfg.color}05)`,
+          border: `1px solid ${cfg.color}33`,
+          borderRadius: '16px', padding: '16px 18px',
+          display: 'flex', alignItems: 'center', gap: '14px',
+        }}>
           <button onClick={() => setSelected(null)}
-            className="p-2 hover:bg-[#2a2a2a] rounded-xl transition-colors text-slate-400 hover:text-white">
-            <ArrowLeft size={18} />
+            style={{
+              padding: '8px', borderRadius: '10px', background: 'rgba(0,0,0,0.3)',
+              border: '1px solid rgba(255,255,255,0.07)', color: '#cbd5e1',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              flexShrink: 0, transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.5)'; e.currentTarget.style.color = '#fff'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.3)'; e.currentTarget.style.color = '#cbd5e1'; }}>
+            <ArrowLeft size={16} />
           </button>
-          <div className="flex-1">
-            <h1 className="text-xl font-bold text-white">{selected.name}</h1>
-            {selected.description && <p className="text-sm text-slate-400">{selected.description}</p>}
+          <div style={{
+            width: 50, height: 50, borderRadius: '12px', flexShrink: 0,
+            background: `${cfg.color}33`, border: `1px solid ${cfg.color}55`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: '22px', fontWeight: 700, color: cfg.color,
+          }}>
+            {selected.name[0].toUpperCase()}
           </div>
-          <span className={`text-xs px-2.5 py-1 rounded-lg font-medium ${typeBg[selected.type] || 'bg-orange-500/10 text-orange-500'}`}>
-            {typeLabels[selected.type]}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: '11px', color: cfg.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <TypeIcon size={11} /> {cfg.label}
+            </p>
+            <h1 style={{ fontSize: '20px', color: '#fff', fontWeight: 700, margin: '3px 0 2px', lineHeight: 1.2, wordBreak: 'break-word' }}>{selected.name}</h1>
+            {selected.description && <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.description}</p>}
+          </div>
+          <span style={{ fontSize: '12px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+            <Users size={12} /> {members.length}
           </span>
           {isAdmin && selected.created_by === user?.id && (
             <button onClick={() => deleteMutation.mutate(selected.id)}
-              className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors">
-              <Trash2 size={16} />
+              style={{ padding: '8px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Trash2 size={14} />
             </button>
           )}
         </div>
@@ -748,37 +813,81 @@ export default function Groups() {
   }
 
   // ── Gruppen-Liste ─────────────────────────────────────────────────────────
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-white">Gruppen</h1>
-        <div className="flex gap-2">
-          <button onClick={() => { setShowJoin(true); setError(''); setJoinCode(''); }}
-            className="flex items-center gap-2 px-3 py-2 bg-[#1e1e1e] border border-[#2a2a2a] hover:border-orange-500/40 text-slate-300 rounded-xl text-sm transition-colors">
-            <LogIn size={14} /> Beitreten
-          </button>
-          <button onClick={() => setShowCreate(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
-            <Plus size={16} /> Neue Gruppe
-          </button>
-        </div>
-      </div>
+  // Typ-Counts für CategoryCards
+  const typeCounts = useMemo(() => {
+    const m = { household: 0, work: 0, general: 0 };
+    for (const g of groups) m[g.type] = (m[g.type] || 0) + 1;
+    return m;
+  }, [groups]);
 
+  const totalMembers = useMemo(() => groups.reduce((s, g) => s + (g.member_count || 0), 0), [groups]);
+  const adminGroups  = useMemo(() => groups.filter(g => g.created_by === user?.id).length, [groups, user]);
+
+  const filteredGroups = typeFilter ? groups.filter(g => g.type === typeFilter) : groups;
+
+  return (
+    <div className="space-y-5">
+      {/* ═══ Kopfzeile ═══ */}
+      <PageHeader
+        icon={Users}
+        title="Gruppen"
+        subtitle="Haushalt, Arbeit & Co. — gemeinsam organisieren"
+        action={
+          <div className="flex gap-2">
+            <button onClick={() => { setShowJoin(true); setError(''); setJoinCode(''); }}
+              className="flex items-center gap-2 px-3 py-2 bg-[#141414] border border-[#1e1e1e] hover:border-orange-500/40 text-slate-300 rounded-xl text-sm transition-colors">
+              <LogIn size={14} /> Beitreten
+            </button>
+            <button onClick={() => setShowCreate(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-medium transition-colors shadow-md shadow-orange-500/20">
+              <Plus size={16} /> Neue Gruppe
+            </button>
+          </div>
+        }
+      />
+
+      {/* ═══ Stats ═══ */}
+      {!isLoading && groups.length > 0 && (
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+          <StatCard icon={Layers} label="Gruppen"   value={groups.length}  color="#f97316" />
+          <StatCard icon={Users}  label="Mitglieder gesamt" value={totalMembers} color="#3b82f6" hint="alle Gruppen" />
+          <StatCard icon={Crown}  label="Admin"     value={adminGroups}    color="#f59e0b" hint="von dir erstellt" />
+          <StatCard icon={Home}   label="Haushalt"  value={typeCounts.household} color="#22c55e"
+            onClick={() => setTypeFilter(typeFilter === 'household' ? '' : 'household')}
+            active={typeFilter === 'household'} />
+        </div>
+      )}
+
+      {/* ═══ Typ-Filter (CategoryCards) ═══ */}
+      {!isLoading && groups.length > 0 && (
+        <div>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>Typ filtern</p>
+          <div className="tab-scroll" style={{ gap: '8px' }}>
+            <CategoryCard icon={Layers} label="Alle" color="#f97316" count={groups.length}
+              active={!typeFilter} onClick={() => setTypeFilter('')} />
+            {Object.entries(TYPE_CONFIG).map(([key, cfg]) => (
+              <CategoryCard key={key} icon={cfg.icon} label={cfg.label} color={cfg.color}
+                count={typeCounts[key] || 0} active={typeFilter === key}
+                onClick={() => setTypeFilter(typeFilter === key ? '' : key)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Liste / EmptyState ═══ */}
       {isLoading ? (
         <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>
       ) : groups.length === 0 ? (
-        <div className="bg-[#1e1e1e] border border-[#2a2a2a] rounded-2xl p-12 text-center">
-          <Users size={40} className="text-slate-600 mx-auto mb-3" />
-          <p className="text-slate-400 font-medium mb-1">Noch keine Gruppen</p>
-          <p className="text-slate-500 text-sm mb-4">Erstelle eine Gruppe oder tritt per Code bei</p>
-          <div className="flex gap-3 justify-center">
-            <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm">Gruppe erstellen</button>
-            <button onClick={() => setShowJoin(true)} className="px-4 py-2 bg-[#2a2a2a] hover:bg-[#333] text-slate-300 rounded-xl text-sm">Per Code beitreten</button>
-          </div>
-        </div>
+        <EmptyState icon={Users} title="Noch keine Gruppen"
+          message="Erstelle eine neue Gruppe oder tritt einer bestehenden per Code bei"
+          actionLabel="Gruppe erstellen" onAction={() => setShowCreate(true)} />
+      ) : filteredGroups.length === 0 ? (
+        <EmptyState icon={Users} title="Keine Gruppen gefunden"
+          message={`Keine ${TYPE_CONFIG[typeFilter]?.label || ''}-Gruppen — Filter zurücksetzen?`}
+          actionLabel="Filter zurücksetzen" onAction={() => setTypeFilter('')} />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {groups.map(g => <GroupCard key={g.id} group={g} onSelect={selectGroup} />)}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {filteredGroups.map(g => <GroupCard key={g.id} group={g} onSelect={selectGroup} />)}
         </div>
       )}
 
