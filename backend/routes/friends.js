@@ -160,17 +160,17 @@ router.get('/share/access/:type/:id', auth, (req, res) => {
    CATEGORY-ACCESS — Freund sieht ALLE Einträge dieser Kategorie
    ════════════════════════════════════════════════════════════════════ */
 
-// Aktueller Status: für einen bestimmten Freund welche Kategorien sind freigegeben?
+// Aktueller Status: detaillierte Rechte für einen Freund
 router.get('/category-access/:friendId', auth, (req, res) => {
   if (!areFriends(req.user.id, req.params.friendId)) return res.status(403).json({ error: 'Nicht befreundet' });
-  const list = db.prepare('SELECT resource_type FROM friend_category_access WHERE owner_id = ? AND friend_id = ?')
+  const list = db.prepare('SELECT resource_type, can_upload, can_edit, can_delete FROM friend_category_access WHERE owner_id = ? AND friend_id = ?')
     .all(req.user.id, req.params.friendId);
-  res.json(list.map(r => r.resource_type));
+  res.json(list);
 });
 
-// Toggle: Kategorie für Freund freigeben/entziehen
+// Toggle/Update: Kategorie + Berechtigungen
 router.post('/category-access', auth, (req, res) => {
-  const { friend_id, resource_type, allowed } = req.body || {};
+  const { friend_id, resource_type, allowed, can_upload, can_edit, can_delete } = req.body || {};
   if (!friend_id || !resource_type) return res.status(400).json({ error: 'Parameter fehlen' });
   if (!areFriends(req.user.id, friend_id)) return res.status(403).json({ error: 'Nicht befreundet' });
 
@@ -178,15 +178,87 @@ router.post('/category-access', auth, (req, res) => {
   if (!validTypes.includes(resource_type)) return res.status(400).json({ error: 'Unbekannter Typ' });
 
   if (allowed) {
-    try {
-      db.prepare('INSERT INTO friend_category_access (owner_id, friend_id, resource_type) VALUES (?, ?, ?)')
-        .run(req.user.id, friend_id, resource_type);
-    } catch {} // Bereits gesetzt
+    const existing = db.prepare('SELECT id FROM friend_category_access WHERE owner_id = ? AND friend_id = ? AND resource_type = ?')
+      .get(req.user.id, friend_id, resource_type);
+    if (existing) {
+      db.prepare('UPDATE friend_category_access SET can_upload = ?, can_edit = ?, can_delete = ? WHERE id = ?')
+        .run(can_upload ? 1 : 0, can_edit ? 1 : 0, can_delete ? 1 : 0, existing.id);
+    } else {
+      db.prepare('INSERT INTO friend_category_access (owner_id, friend_id, resource_type, can_upload, can_edit, can_delete) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(req.user.id, friend_id, resource_type, can_upload ? 1 : 0, can_edit ? 1 : 0, can_delete ? 1 : 0);
+    }
   } else {
     db.prepare('DELETE FROM friend_category_access WHERE owner_id = ? AND friend_id = ? AND resource_type = ?')
       .run(req.user.id, friend_id, resource_type);
   }
   res.json({ success: true });
+});
+
+/* ════════════════════════════════════════════════════════════════════
+   JOINT-VIEW — Gemeinsamer Bereich zwischen 2 Freunden
+   ════════════════════════════════════════════════════════════════════ */
+
+// Liste aller Freunde mit denen ich einen Joint-Bereich habe (gegenseitige Freigabe)
+router.get('/joint/list', auth, (req, res) => {
+  // Freunde wo ICH was gebe ODER er mir was gibt
+  const giveTo = db.prepare('SELECT DISTINCT friend_id FROM friend_category_access WHERE owner_id = ?').all(req.user.id).map(r => r.friend_id);
+  const getFrom = db.prepare('SELECT DISTINCT owner_id FROM friend_category_access WHERE friend_id = ?').all(req.user.id).map(r => r.owner_id);
+  const all = [...new Set([...giveTo, ...getFrom])];
+  if (all.length === 0) return res.json([]);
+
+  const result = all.map(uid => {
+    const u = db.prepare('SELECT id as user_id, username, avatar FROM users WHERE id = ?').get(uid);
+    if (!u) return null;
+    const myShares = db.prepare('SELECT resource_type FROM friend_category_access WHERE owner_id = ? AND friend_id = ?').all(req.user.id, uid).map(r => r.resource_type);
+    const theirShares = db.prepare('SELECT resource_type FROM friend_category_access WHERE owner_id = ? AND friend_id = ?').all(uid, req.user.id).map(r => r.resource_type);
+    const joint = [...new Set([...myShares, ...theirShares])];
+    return { ...u, categories: joint };
+  }).filter(Boolean);
+  result.sort((a, b) => (a.username || '').localeCompare(b.username || ''));
+  res.json(result);
+});
+
+// Items aus beiden Richtungen für eine Kategorie zusammen
+router.get('/joint/:friendId/:type', auth, (req, res) => {
+  const { friendId, type } = req.params;
+  const cfg = RESOURCE_TABLES[type];
+  if (!cfg) return res.status(400).json({ error: 'Unbekannter Typ' });
+  if (!areFriends(req.user.id, friendId)) return res.status(403).json({ error: 'Nicht befreundet' });
+
+  const personalFilter = cfg.personalOnly ? ' AND t.group_id IS NULL' : '';
+
+  // MEINE Items (ich gebe Freund Zugriff)
+  const myAccess = db.prepare('SELECT can_upload, can_edit, can_delete FROM friend_category_access WHERE owner_id = ? AND friend_id = ? AND resource_type = ?')
+    .get(req.user.id, friendId, type);
+  let myItems = [];
+  if (myAccess) {
+    myItems = db.prepare(`SELECT t.*, u.username as owner_name, u.avatar as owner_avatar, ${req.user.id} as actual_owner_id, 'me' as side FROM ${cfg.table} t JOIN users u ON u.id = t.${cfg.owner} WHERE t.${cfg.owner} = ?${personalFilter}`).all(req.user.id);
+  }
+
+  // SEINE Items (Freund gibt mir Zugriff)
+  const theirAccess = db.prepare('SELECT can_upload, can_edit, can_delete FROM friend_category_access WHERE owner_id = ? AND friend_id = ? AND resource_type = ?')
+    .get(friendId, req.user.id, type);
+  let theirItems = [];
+  if (theirAccess) {
+    theirItems = db.prepare(`SELECT t.*, u.username as owner_name, u.avatar as owner_avatar, ${friendId} as actual_owner_id, 'friend' as side FROM ${cfg.table} t JOIN users u ON u.id = t.${cfg.owner} WHERE t.${cfg.owner} = ?${personalFilter}`).all(friendId);
+  }
+
+  // Anhänge zählen wenn Dokumente
+  const items = [...myItems, ...theirItems];
+  if (type === 'document') {
+    items.forEach(it => {
+      it.attachment_count = db.prepare('SELECT COUNT(*) as n FROM document_attachments WHERE document_id = ?').get(it.id)?.n || 0;
+    });
+  }
+  items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+  res.json({
+    items,
+    permissions: {
+      mine: myAccess || null,        // Was ich Freund gebe
+      theirs: theirAccess || null,    // Was Freund mir gibt
+    },
+  });
 });
 
 /* ════════════════════════════════════════════════════════════════════

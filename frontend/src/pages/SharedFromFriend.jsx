@@ -40,28 +40,45 @@ function StatusPill({ status }) {
   return <span style={{ padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: s.bg, color: s.color }}>{s.label}</span>;
 }
 
-/* Tab-Komponente: zeigt Items einer Kategorie vom Freund */
+function OwnerBadge({ side, ownerName, color }) {
+  const isMe = side === 'me';
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: '4px',
+      padding: '2px 7px', borderRadius: '5px', fontSize: '10px', fontWeight: 600,
+      background: isMe ? 'rgba(249,115,22,0.12)' : 'rgba(244,63,94,0.12)',
+      color: isMe ? '#f97316' : '#fb7185',
+      border: `1px solid ${isMe ? 'rgba(249,115,22,0.3)' : 'rgba(244,63,94,0.3)'}`,
+    }}>
+      {isMe ? '👤 Du' : `❤ ${ownerName}`}
+    </span>
+  );
+}
+
+/* Tab-Komponente: zeigt Items einer Kategorie aus BEIDEN Richtungen */
 function CategoryItems({ ownerId, type, category }) {
-  const { data: items = [], isLoading } = useQuery({
-    queryKey: ['shared-from', ownerId, type],
-    queryFn: () => api.get(`/friends/from/${ownerId}/${type}`),
+  const { data: response = { items: [], permissions: {} }, isLoading } = useQuery({
+    queryKey: ['joint', ownerId, type],
+    queryFn: () => api.get(`/friends/joint/${ownerId}/${type}`),
   });
+  const items = response.items || [];
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
-  if (items.length === 0) return <EmptyState icon={category.icon} title="Nichts geteilt" message={`Dein Freund hat in dieser Kategorie noch nichts mit dir geteilt.`} />;
+  if (items.length === 0) return <EmptyState icon={category.icon} title="Nichts gemeinsam" message="Hier landen Einträge sobald einer von euch beiden was teilt." />;
 
   // Item-Render je nach Typ
   if (type === 'document') {
     return (
       <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
         {items.map(d => (
-          <div key={d.id} style={{ padding: '12px 16px', borderTop: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div key={`${d.side}-${d.id}`} style={{ padding: '12px 16px', borderTop: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: 38, height: 38, borderRadius: '10px', background: `${category.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <FileText size={16} color={category.color} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                 <p style={{ fontSize: '14px', fontWeight: 500, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.title}</p>
+                <OwnerBadge side={d.side} ownerName={d.owner_name} />
                 {d.attachment_count > 0 && <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', padding: '1px 6px', background: 'rgba(249,115,22,0.12)', color: '#f97316', borderRadius: '5px', fontSize: '10px', fontWeight: 600 }}><Paperclip size={9} /> {d.attachment_count}</span>}
                 {d.starred ? <Star size={12} fill="#f59e0b" color="#f59e0b" /> : null}
               </div>
@@ -80,9 +97,10 @@ function CategoryItems({ ownerId, type, category }) {
     return (
       <div className="space-y-2">
         {items.map(t => (
-          <div key={t.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div key={`${t.side}-${t.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <p style={{ flex: 1, color: '#fff', fontSize: '14px', fontWeight: 500, margin: 0 }}>{t.title}</p>
+              <OwnerBadge side={t.side} ownerName={t.owner_name} />
               <StatusPill status={t.status} />
             </div>
             {t.description && <p style={{ fontSize: '12px', color: '#94a3b8', margin: '6px 0 0' }}>{t.description}</p>}
@@ -211,8 +229,8 @@ export default function SharedFromFriend() {
   const navigate = useNavigate();
 
   const { data: sharers = [], isLoading } = useQuery({
-    queryKey: ['friend-sharers'],
-    queryFn: () => api.get('/friends/sharers'),
+    queryKey: ['joint-list'],
+    queryFn: () => api.get('/friends/joint/list'),
   });
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
@@ -250,10 +268,10 @@ export default function SharedFromFriend() {
         }
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontSize: '11px', color: '#fb7185', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <Heart size={11} /> Persönliches von
+            <Heart size={11} /> Gemeinsam mit
           </p>
           <h1 style={{ fontSize: '20px', color: '#fff', fontWeight: 700, margin: '3px 0 2px' }}>{owner.username}</h1>
-          <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>{accessibleCats.length} {accessibleCats.length === 1 ? 'Kategorie' : 'Kategorien'} freigegeben</p>
+          <p style={{ fontSize: '12px', color: '#94a3b8', margin: 0 }}>{accessibleCats.length} {accessibleCats.length === 1 ? 'Kategorie' : 'Kategorien'} verbunden — Einträge aus beiden Richtungen</p>
         </div>
       </div>
 

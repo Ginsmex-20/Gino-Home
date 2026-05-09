@@ -311,6 +311,10 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS friend_category_access (
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   UNIQUE(owner_id, friend_id, resource_type)
 )`); } catch {}
+// Granulare Rechte pro Kategorie-Freigabe
+try { db.exec('ALTER TABLE friend_category_access ADD COLUMN can_upload INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE friend_category_access ADD COLUMN can_edit INTEGER DEFAULT 0'); } catch {}
+try { db.exec('ALTER TABLE friend_category_access ADD COLUMN can_delete INTEGER DEFAULT 0'); } catch {}
 
 // Pro-Eintrag-Freigaben für Freunde (generisch über Resource-Type)
 try { db.exec(`CREATE TABLE IF NOT EXISTS friend_shares (

@@ -13,19 +13,26 @@ import { StatCard, PageHeader, EmptyState } from '../components/ui';
 function FriendPermissions({ friendId, friendUsername }) {
   const qc = useQueryClient();
   const [error, setError] = useState('');
+  const [expandedCat, setExpandedCat] = useState(null);
+
   const { data: granted = [] } = useQuery({
     queryKey: ['friend-cat-access', friendId],
     queryFn: () => api.get(`/friends/category-access/${friendId}`),
   });
+
   const toggleMut = useMutation({
-    mutationFn: ({ resource_type, allowed }) => api.post('/friends/category-access', { friend_id: friendId, resource_type, allowed }),
-    // Optimistic Update — UI bewegt sich sofort, ohne auf Server zu warten
-    onMutate: async ({ resource_type, allowed }) => {
+    mutationFn: (data) => api.post('/friends/category-access', { friend_id: friendId, ...data }),
+    onMutate: async (data) => {
       await qc.cancelQueries({ queryKey: ['friend-cat-access', friendId] });
       const previous = qc.getQueryData(['friend-cat-access', friendId]) || [];
-      const next = allowed
-        ? [...new Set([...previous, resource_type])]
-        : previous.filter(x => x !== resource_type);
+      let next;
+      if (data.allowed) {
+        const idx = previous.findIndex(x => x.resource_type === data.resource_type);
+        const updated = { resource_type: data.resource_type, can_upload: data.can_upload ? 1 : 0, can_edit: data.can_edit ? 1 : 0, can_delete: data.can_delete ? 1 : 0 };
+        next = idx >= 0 ? previous.map((x, i) => i === idx ? updated : x) : [...previous, updated];
+      } else {
+        next = previous.filter(x => x.resource_type !== data.resource_type);
+      }
       qc.setQueryData(['friend-cat-access', friendId], next);
       return { previous };
     },
@@ -36,10 +43,12 @@ function FriendPermissions({ friendId, friendUsername }) {
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['friend-cat-access', friendId] });
-      qc.invalidateQueries({ queryKey: ['friend-sharers'] }); // Sidebar/Kategorien refreshen
+      qc.invalidateQueries({ queryKey: ['friend-sharers'] });
+      qc.invalidateQueries({ queryKey: ['joint-list'] });
     },
   });
-  const set = new Set(granted);
+
+  const grantedMap = Object.fromEntries(granted.map(g => [g.resource_type, g]));
 
   const CATS = [
     { key: 'document',        label: 'Dokumente',     icon: FileText,       color: '#f97316' },
@@ -64,38 +73,69 @@ function FriendPermissions({ friendId, friendUsername }) {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
         {CATS.map(c => {
           const Icon = c.icon;
-          const on = set.has(c.key);
+          const grant = grantedMap[c.key];
+          const on = !!grant;
+          const isExp = expandedCat === c.key;
           return (
-            <div key={c.key}
-              onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: !on })}
-              role="button" tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleMut.mutate({ resource_type: c.key, allowed: !on }); } }}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px',
-                borderRadius: '9px', border: `1px solid ${on ? c.color + '55' : '#1e1e1e'}`,
-                background: on ? `${c.color}10` : 'transparent',
-                cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
-                userSelect: 'none',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor = on ? c.color : '#3a3a3a'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = on ? `${c.color}55` : '#1e1e1e'; }}>
-              <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${c.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon size={13} color={c.color} />
+            <div key={c.key} style={{
+              borderRadius: '9px', border: `1px solid ${on ? c.color + '55' : '#1e1e1e'}`,
+              background: on ? `${c.color}10` : 'transparent', overflow: 'hidden', transition: 'all 0.15s',
+            }}>
+              {/* Hauptzeile — Kategorie ein/aus */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px' }}>
+                <div onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: !on, ...(grant || {}) })}
+                  role="button" style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, cursor: 'pointer', userSelect: 'none' }}>
+                  <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${c.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon size={13} color={c.color} />
+                  </div>
+                  <span style={{ flex: 1, fontSize: '13px', color: '#cbd5e1', fontWeight: 500 }}>{c.label}</span>
+                  <div style={{
+                    width: 36, height: 20, borderRadius: '10px',
+                    background: on ? c.color : '#2a2a2a',
+                    position: 'relative', transition: 'background 0.2s', flexShrink: 0, pointerEvents: 'none',
+                  }}>
+                    <div style={{ position: 'absolute', top: 2, left: on ? 18 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)' }} />
+                  </div>
+                </div>
+                {on && (
+                  <button onClick={() => setExpandedCat(isExp ? null : c.key)}
+                    title="Detail-Berechtigungen"
+                    style={{ padding: '4px 8px', borderRadius: '6px', background: isExp ? `${c.color}22` : 'transparent', border: `1px solid ${c.color}44`, color: c.color, cursor: 'pointer', fontSize: '11px', fontWeight: 600, flexShrink: 0 }}>
+                    Rechte {isExp ? '−' : '+'}
+                  </button>
+                )}
               </div>
-              <span style={{ flex: 1, fontSize: '13px', color: '#cbd5e1', fontWeight: 500 }}>{c.label}</span>
-              {/* Toggle-Schieber — pointer-events: none damit der Parent-Click greift */}
-              <div style={{
-                width: 36, height: 20, borderRadius: '10px',
-                background: on ? c.color : '#2a2a2a',
-                position: 'relative', transition: 'background 0.2s', flexShrink: 0, pointerEvents: 'none',
-                boxShadow: on ? `0 0 0 1px ${c.color}66` : 'inset 0 0 0 1px #1e1e1e',
-              }}>
-                <div style={{
-                  position: 'absolute', top: 2, left: on ? 18 : 2,
-                  width: 16, height: 16, borderRadius: '50%', background: '#fff',
-                  transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.4)',
-                }} />
-              </div>
+
+              {/* Sub-Toggles für Berechtigungen */}
+              {on && isExp && (
+                <div style={{ borderTop: `1px solid ${c.color}33`, padding: '8px 10px 10px', display: 'flex', flexDirection: 'column', gap: '6px', background: 'rgba(0,0,0,0.15)' }}>
+                  {[
+                    { key: 'can_upload', label: 'Hochladen erlauben', hint: 'Darf neue Einträge zu deiner Kategorie hinzufügen' },
+                    { key: 'can_edit',   label: 'Bearbeiten erlauben', hint: 'Darf bestehende Einträge ändern' },
+                    { key: 'can_delete', label: 'Löschen erlauben',    hint: 'Darf deine Einträge löschen' },
+                  ].map(p => {
+                    const pOn = !!grant[p.key];
+                    return (
+                      <div key={p.key}
+                        onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: true, can_upload: grant.can_upload, can_edit: grant.can_edit, can_delete: grant.can_delete, [p.key]: pOn ? 0 : 1 })}
+                        role="button"
+                        style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderRadius: '7px', cursor: 'pointer', userSelect: 'none', background: pOn ? 'rgba(255,255,255,0.04)' : 'transparent' }}>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: '12px', color: pOn ? '#fff' : '#cbd5e1', fontWeight: 500, margin: 0 }}>{p.label}</p>
+                          <p style={{ fontSize: '10px', color: '#64748b', margin: '1px 0 0' }}>{p.hint}</p>
+                        </div>
+                        <div style={{
+                          width: 28, height: 16, borderRadius: '8px',
+                          background: pOn ? c.color : '#1e1e1e',
+                          position: 'relative', transition: 'background 0.2s', flexShrink: 0, pointerEvents: 'none',
+                        }}>
+                          <div style={{ position: 'absolute', top: 2, left: pOn ? 14 : 2, width: 12, height: 12, borderRadius: '50%', background: '#fff', transition: 'left 0.2s' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           );
         })}

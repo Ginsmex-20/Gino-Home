@@ -53,10 +53,10 @@ function SharersSection({ onClose, collapsed }) {
   const [expanded, setExpanded] = useState({});
 
   const { data: sharers = [] } = useQuery({
-    queryKey: ['friend-sharers'],
-    queryFn:  () => api.get('/friends/sharers'),
+    queryKey: ['joint-list'],
+    queryFn:  () => api.get('/friends/joint/list'),
     refetchOnMount: 'always',
-    refetchInterval: 30000, // alle 30s nachladen damit neue Freigaben auftauchen
+    refetchInterval: 30000,
   });
 
   const toggle   = id   => setExpanded(e => ({ ...e, [id]: !e[id] }));
@@ -66,7 +66,7 @@ function SharersSection({ onClose, collapsed }) {
   if (sharers.length === 0) {
     return collapsed ? null : (
       <div style={{ padding: '8px 12px', fontSize: '11px', color: '#475569', lineHeight: 1.5 }}>
-        Noch keine Freigaben. Frage einen Freund ob er etwas mit dir teilt!
+        Noch keine gemeinsamen Bereiche. Aktiviere bei einem Freund die Berechtigung damit ihr zusammen arbeiten könnt.
       </div>
     );
   }
@@ -433,7 +433,7 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
         {!collapsed && (
           <div style={{ padding: '0 12px 4px' }}>
             <span style={{ fontSize: '10px', fontWeight: 600, color: '#374151', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Persönliches von
+              Gemeinsam mit
             </span>
           </div>
         )}
