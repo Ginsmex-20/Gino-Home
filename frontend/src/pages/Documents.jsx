@@ -568,6 +568,12 @@ export default function Documents() {
   // Cross-Linking Modal
   const [linkModal, setLinkModal]     = useState(null); // null | { docId, type: 'contract'|'loan' }
 
+  // Auswahl-Modus für Kategorien & Unterkategorien
+  const [selectMode, setSelectMode]   = useState(false);
+  const [selCats, setSelCats]         = useState(new Set()); // IDs eigener Kategorien
+  const [selSubs, setSelSubs]         = useState(new Set()); // IDs eigener Unterkategorien
+  const [confirmDel, setConfirmDel]   = useState(null);      // null | { items, count }
+
   // Inline-Eingaben für Kategorie/Unterkategorie
   const [showNewCat, setShowNewCat]   = useState(false);
   const [newCatName, setNewCatName]   = useState('');
@@ -805,13 +811,36 @@ export default function Documents() {
 
       {/* ═══ KATEGORIE-CARDS ════════════════════════════════════════════ */}
       <div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
           <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>Kategorie</p>
-          {!showNewCat && (
-            <button onClick={() => setShowNewCat(true)} style={{ fontSize: '11px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
-              <Plus size={11} /> Neue Kategorie
-            </button>
-          )}
+          <div style={{ display: 'flex', gap: '6px' }}>
+            {selectMode ? (
+              <>
+                {(selCats.size + selSubs.size) > 0 && (
+                  <button onClick={() => setConfirmDel({ count: selCats.size + selSubs.size })}
+                    style={{ fontSize: '11px', color: '#fff', background: '#ef4444', border: 'none', borderRadius: '7px', padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 600 }}>
+                    <Trash2 size={11} /> {selCats.size + selSubs.size} löschen
+                  </button>
+                )}
+                <button onClick={() => { setSelectMode(false); setSelCats(new Set()); setSelSubs(new Set()); }}
+                  style={{ fontSize: '11px', color: '#94a3b8', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '7px', padding: '4px 10px', cursor: 'pointer' }}>
+                  Abbrechen
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={() => setSelectMode(true)}
+                  style={{ fontSize: '11px', color: '#94a3b8', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '7px', padding: '4px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <CheckSquare size={11} /> Auswählen
+                </button>
+                {!showNewCat && (
+                  <button onClick={() => setShowNewCat(true)} style={{ fontSize: '11px', color: '#64748b', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                    <Plus size={11} /> Neue Kategorie
+                  </button>
+                )}
+              </>
+            )}
+          </div>
         </div>
         <div className="tab-scroll" style={{ gap: '8px' }}>
           {/* Alle */}
@@ -842,9 +871,21 @@ export default function Documents() {
 
           {/* Custom-Kategorien */}
           {customCats.map(cat => (
-            <CategoryCard key={cat.id} icon={Folder} label={cat.name} color={cat.color || '#f97316'}
-              count={catCounts[cat.name] || 0} active={catFilter === cat.name} onClick={() => selectCat(cat.name)}
-              onDelete={() => delCatMut.mutate(cat.id)} />
+            <div key={cat.id} style={{ position: 'relative' }}>
+              <CategoryCard icon={Folder} label={cat.name} color={cat.color || '#f97316'}
+                count={catCounts[cat.name] || 0}
+                active={selectMode ? selCats.has(cat.id) : (catFilter === cat.name)}
+                onClick={() => {
+                  if (selectMode) {
+                    setSelCats(prev => { const n = new Set(prev); n.has(cat.id) ? n.delete(cat.id) : n.add(cat.id); return n; });
+                  } else { selectCat(cat.name); }
+                }} />
+              {selectMode && (
+                <div style={{ position: 'absolute', top: 6, right: 6, width: 18, height: 18, borderRadius: '50%', background: selCats.has(cat.id) ? '#ef4444' : 'rgba(0,0,0,0.6)', border: `2px solid ${selCats.has(cat.id) ? '#ef4444' : '#475569'}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {selCats.has(cat.id) && <span style={{ color: '#fff', fontSize: '10px', lineHeight: 1 }}>✓</span>}
+                </div>
+              )}
+            </div>
           ))}
 
           {/* Neue Kategorie inline */}
@@ -871,17 +912,29 @@ export default function Documents() {
             color: !subFilter ? '#fff' : '#94a3b8',
             border: !subFilter ? '1px solid #f97316' : '1px solid #2a2a2a',
           }}>Alle</button>
-          {filterSubs.map(sub => (
-            <div key={sub.id} style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-              <button onClick={() => setSubFilter(sub.name)} style={{
-                padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer',
-                background: subFilter === sub.name ? '#f97316' : 'transparent',
-                color: subFilter === sub.name ? '#fff' : '#94a3b8',
-                border: subFilter === sub.name ? '1px solid #f97316' : '1px solid #2a2a2a',
-              }}>{sub.name}</button>
-              <button onClick={() => delSubMut.mutate(sub.id)} style={{ color: '#475569', background: 'none', border: 'none', cursor: 'pointer', padding: '2px' }}><X size={11} /></button>
-            </div>
-          ))}
+          {filterSubs.map(sub => {
+            const sel = selSubs.has(sub.id);
+            return (
+              <button key={sub.id}
+                onClick={() => {
+                  if (selectMode) {
+                    setSelSubs(prev => { const n = new Set(prev); n.has(sub.id) ? n.delete(sub.id) : n.add(sub.id); return n; });
+                  } else { setSubFilter(sub.name); }
+                }}
+                style={{
+                  padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0,
+                  display: 'flex', alignItems: 'center', gap: '5px',
+                  background: selectMode ? (sel ? 'rgba(239,68,68,0.2)' : 'transparent') : (subFilter === sub.name ? '#f97316' : 'transparent'),
+                  color: selectMode ? (sel ? '#ef4444' : '#94a3b8') : (subFilter === sub.name ? '#fff' : '#94a3b8'),
+                  border: `1px solid ${selectMode ? (sel ? '#ef4444' : '#2a2a2a') : (subFilter === sub.name ? '#f97316' : '#2a2a2a')}`,
+                }}>
+                {selectMode && (
+                  <span style={{ width: 12, height: 12, borderRadius: '50%', background: sel ? '#ef4444' : 'transparent', border: `1.5px solid ${sel ? '#ef4444' : '#475569'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '8px', color: '#fff', lineHeight: 1 }}>{sel && '✓'}</span>
+                )}
+                {sub.name}
+              </button>
+            );
+          })}
           {showNewSub ? (
             <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexShrink: 0 }}>
               <input autoFocus placeholder="z.B. Handyvertrag O2..." value={newSubName} onChange={e => setNewSubName(e.target.value)}
@@ -1134,6 +1187,42 @@ export default function Documents() {
           </div>
         </div>
       )}
+
+      {/* ═══ LÖSCH-BESTÄTIGUNG für Kategorien/Unterordner ══════════════════ */}
+      <Modal open={!!confirmDel} onClose={() => setConfirmDel(null)} title="Wirklich löschen?" size="sm">
+        <div className="space-y-4">
+          <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '12px', padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+            <AlertTriangle size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: '1px' }} />
+            <div>
+              <p style={{ color: '#f87171', fontWeight: 600, fontSize: '14px', margin: 0 }}>
+                {selCats.size + selSubs.size} {selCats.size + selSubs.size === 1 ? 'Eintrag' : 'Einträge'} werden permanent gelöscht
+              </p>
+              <p style={{ color: '#94a3b8', fontSize: '12px', margin: '6px 0 0', lineHeight: 1.5 }}>
+                {selCats.size > 0 && <span>{selCats.size} {selCats.size === 1 ? 'Kategorie' : 'Kategorien'}</span>}
+                {selCats.size > 0 && selSubs.size > 0 && <span> und </span>}
+                {selSubs.size > 0 && <span>{selSubs.size} {selSubs.size === 1 ? 'Unterordner' : 'Unterordner'}</span>}
+                {' '}werden gelöscht. Die <strong style={{ color: '#fff' }}>Dokumente</strong> in diesen Kategorien bleiben erhalten,
+                werden aber als „Sonstiges" einsortiert.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={() => setConfirmDel(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-white">Abbrechen</button>
+            <button
+              onClick={async () => {
+                await Promise.all([
+                  ...Array.from(selCats).map(id => delCatMut.mutateAsync(id)),
+                  ...Array.from(selSubs).map(id => delSubMut.mutateAsync(id)),
+                ]);
+                setConfirmDel(null); setSelectMode(false); setSelCats(new Set()); setSelSubs(new Set());
+              }}
+              disabled={delCatMut.isPending || delSubMut.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-xl text-sm font-medium">
+              <Trash2 size={13} /> Ja, löschen
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ═══ DETAIL-MODAL ════════════════════════════════════════════════ */}
       <DetailModal

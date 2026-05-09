@@ -302,6 +302,16 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS friendships (
   UNIQUE(requester_id, recipient_id)
 )`); } catch {}
 
+// Pro-Kategorie-Freigaben (Freund sieht ALLE Einträge dieser Kategorie)
+try { db.exec(`CREATE TABLE IF NOT EXISTS friend_category_access (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  friend_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  resource_type TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(owner_id, friend_id, resource_type)
+)`); } catch {}
+
 // Pro-Eintrag-Freigaben für Freunde (generisch über Resource-Type)
 try { db.exec(`CREATE TABLE IF NOT EXISTS friend_shares (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

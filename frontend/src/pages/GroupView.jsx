@@ -1735,7 +1735,13 @@ export default function GroupView() {
     onError:    err => setInviteError(err.error || 'Fehler')
   });
 
+  const deleteGroupMut = useMutation({
+    mutationFn: () => api.delete(`/groups/${groupId}`),
+    onSuccess: () => { qc.invalidateQueries(['groups']); navigate('/groups'); },
+  });
+
   const isAdmin = members.find(m => m.id === user?.id)?.role === 'admin';
+  const isOwner = group?.created_by === user?.id;
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
   if (!group)    return (
@@ -1759,6 +1765,20 @@ export default function GroupView() {
         <span className={`text-xs px-2 md:px-2.5 py-1 rounded-lg font-medium shrink-0 ${typeBg[group.type] || 'bg-orange-500/10 text-orange-500'}`}>
           {typeLabels[group.type]}
         </span>
+        {isOwner && (
+          <button
+            onClick={() => {
+              if (confirm(`Gruppe "${group.name}" wirklich löschen?\n\nAlle Aufgaben, Dokumente, Termine, Nachrichten und Mitgliedschaften werden permanent entfernt. Das kann NICHT rückgängig gemacht werden.`)) {
+                deleteGroupMut.mutate();
+              }
+            }}
+            disabled={deleteGroupMut.isPending}
+            title="Gruppe löschen"
+            style={{ padding: '8px 12px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 500, flexShrink: 0 }}>
+            {deleteGroupMut.isPending ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+            <span className="hidden md:inline">Gruppe löschen</span>
+          </button>
+        )}
       </div>
 
       {/* Tab-Bar — horizontal scroll auf Mobil */}

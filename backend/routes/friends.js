@@ -156,36 +156,87 @@ router.get('/share/access/:type/:id', auth, (req, res) => {
   res.json(list);
 });
 
-// Was wurde mit MIR geteilt? (gruppiert nach Owner)
+/* ════════════════════════════════════════════════════════════════════
+   CATEGORY-ACCESS — Freund sieht ALLE Einträge dieser Kategorie
+   ════════════════════════════════════════════════════════════════════ */
+
+// Aktueller Status: für einen bestimmten Freund welche Kategorien sind freigegeben?
+router.get('/category-access/:friendId', auth, (req, res) => {
+  if (!areFriends(req.user.id, req.params.friendId)) return res.status(403).json({ error: 'Nicht befreundet' });
+  const list = db.prepare('SELECT resource_type FROM friend_category_access WHERE owner_id = ? AND friend_id = ?')
+    .all(req.user.id, req.params.friendId);
+  res.json(list.map(r => r.resource_type));
+});
+
+// Toggle: Kategorie für Freund freigeben/entziehen
+router.post('/category-access', auth, (req, res) => {
+  const { friend_id, resource_type, allowed } = req.body || {};
+  if (!friend_id || !resource_type) return res.status(400).json({ error: 'Parameter fehlen' });
+  if (!areFriends(req.user.id, friend_id)) return res.status(403).json({ error: 'Nicht befreundet' });
+
+  const validTypes = ['document','task','contract','loan','finance_item','calendar_event','vault_entry'];
+  if (!validTypes.includes(resource_type)) return res.status(400).json({ error: 'Unbekannter Typ' });
+
+  if (allowed) {
+    try {
+      db.prepare('INSERT INTO friend_category_access (owner_id, friend_id, resource_type) VALUES (?, ?, ?)')
+        .run(req.user.id, friend_id, resource_type);
+    } catch {} // Bereits gesetzt
+  } else {
+    db.prepare('DELETE FROM friend_category_access WHERE owner_id = ? AND friend_id = ? AND resource_type = ?')
+      .run(req.user.id, friend_id, resource_type);
+  }
+  res.json({ success: true });
+});
+
+// Was wurde mit MIR geteilt? (Einzel-Shares + Kategorie-Zugriff)
 router.get('/shared-with-me', auth, (req, res) => {
   const { type } = req.query;
   const tables = {
-    document: 'documents', task: 'tasks', contract: 'contracts',
-    loan: 'loans', finance_item: 'finance_items', calendar_event: 'calendar_events',
-    vault_entry: 'vault_entries',
+    document: { table: 'documents', owner: 'uploaded_by' },
+    task: { table: 'tasks', owner: 'created_by' },
+    contract: { table: 'contracts', owner: 'created_by' },
+    loan: { table: 'loans', owner: 'created_by' },
+    finance_item: { table: 'finance_items', owner: 'created_by' },
+    calendar_event: { table: 'calendar_events', owner: 'created_by' },
+    vault_entry: { table: 'vault_entries', owner: 'user_id' },
   };
 
   if (type) {
-    const table = tables[type];
-    if (!table) return res.status(400).json({ error: 'Unbekannter Typ' });
+    const cfg = tables[type];
+    if (!cfg) return res.status(400).json({ error: 'Unbekannter Typ' });
+    // 1) Einzel-Shares
+    // 2) Kategorie-Zugriff: alle Items von Ownern die mir Kategorie-Zugriff gegeben haben
     const items = db.prepare(`
-      SELECT t.*, u.username as owner_name, u.avatar as owner_avatar, fs.created_at as shared_at, ? as resource_type
+      SELECT t.*, u.username as owner_name, u.avatar as owner_avatar, fs.created_at as shared_at, ? as resource_type, 'item' as access_via
       FROM friend_shares fs
-      JOIN ${table} t ON t.id = fs.resource_id
+      JOIN ${cfg.table} t ON t.id = fs.resource_id
       JOIN users u ON u.id = fs.owner_id
       WHERE fs.friend_id = ? AND fs.resource_type = ?
-      ORDER BY fs.created_at DESC
-    `).all(type, req.user.id, type);
+      UNION
+      SELECT t.*, u.username as owner_name, u.avatar as owner_avatar, fca.created_at as shared_at, ? as resource_type, 'category' as access_via
+      FROM friend_category_access fca
+      JOIN ${cfg.table} t ON t.${cfg.owner} = fca.owner_id
+      JOIN users u ON u.id = fca.owner_id
+      WHERE fca.friend_id = ? AND fca.resource_type = ?
+      ORDER BY shared_at DESC
+    `).all(type, req.user.id, type, type, req.user.id, type);
     return res.json(items);
   }
 
-  // Übersicht aller Typen
-  const summary = db.prepare(`
-    SELECT resource_type, COUNT(*) as count
-    FROM friend_shares
-    WHERE friend_id = ?
-    GROUP BY resource_type
-  `).all(req.user.id);
+  // Übersicht aller Typen — Counts aus beiden Quellen
+  const itemCounts = db.prepare(`SELECT resource_type, COUNT(*) as count FROM friend_shares WHERE friend_id = ? GROUP BY resource_type`).all(req.user.id);
+  const catAccess = db.prepare(`SELECT owner_id, resource_type FROM friend_category_access WHERE friend_id = ?`).all(req.user.id);
+
+  const counts = {};
+  for (const row of itemCounts) counts[row.resource_type] = (counts[row.resource_type] || 0) + row.count;
+  for (const ca of catAccess) {
+    const cfg = tables[ca.resource_type];
+    if (!cfg) continue;
+    const c = db.prepare(`SELECT COUNT(*) as n FROM ${cfg.table} WHERE ${cfg.owner} = ?`).get(ca.owner_id);
+    counts[ca.resource_type] = (counts[ca.resource_type] || 0) + (c?.n || 0);
+  }
+  const summary = Object.entries(counts).map(([resource_type, count]) => ({ resource_type, count }));
   res.json({ summary });
 });
 

@@ -3,10 +3,81 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Users, UserPlus, UserMinus, Check, X, Mail, Loader2, Heart,
   FileText, FileSignature, CreditCard, CheckSquare, Wallet, Calendar, KeyRound,
+  ChevronDown, ChevronUp, Settings,
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import api from '../api/client';
 import { StatCard, PageHeader, EmptyState } from '../components/ui';
+
+/* Komponente: Berechtigungs-Toggles für einen Freund */
+function FriendPermissions({ friendId, friendUsername }) {
+  const qc = useQueryClient();
+  const { data: granted = [] } = useQuery({
+    queryKey: ['friend-cat-access', friendId],
+    queryFn: () => api.get(`/friends/category-access/${friendId}`),
+  });
+  const toggleMut = useMutation({
+    mutationFn: ({ resource_type, allowed }) => api.post('/friends/category-access', { friend_id: friendId, resource_type, allowed }),
+    onSuccess: () => qc.invalidateQueries(['friend-cat-access', friendId]),
+  });
+  const set = new Set(granted);
+
+  const CATS = [
+    { key: 'document',        label: 'Dokumente',     icon: FileText,       color: '#f97316' },
+    { key: 'task',            label: 'Aufgaben',      icon: CheckSquare,    color: '#3b82f6' },
+    { key: 'contract',        label: 'Verträge',      icon: FileSignature,  color: '#a78bfa' },
+    { key: 'loan',            label: 'Schulden/Raten',icon: CreditCard,     color: '#f43f5e' },
+    { key: 'finance_item',    label: 'Finanzen',      icon: Wallet,         color: '#22c55e' },
+    { key: 'calendar_event',  label: 'Termine',       icon: Calendar,       color: '#60a5fa' },
+    { key: 'vault_entry',     label: 'Tresor',        icon: KeyRound,       color: '#06b6d4' },
+  ];
+
+  return (
+    <div style={{ background: '#0f0f0f', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px', marginTop: '8px' }}>
+      <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px' }}>
+        {friendUsername} darf sehen:
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        {CATS.map(c => {
+          const Icon = c.icon;
+          const on = set.has(c.key);
+          return (
+            <button key={c.key}
+              onClick={() => toggleMut.mutate({ resource_type: c.key, allowed: !on })}
+              disabled={toggleMut.isPending}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 10px',
+                borderRadius: '9px', border: `1px solid ${on ? c.color + '55' : '#1e1e1e'}`,
+                background: on ? `${c.color}10` : 'transparent',
+                cursor: 'pointer', transition: 'all 0.15s', textAlign: 'left',
+              }}>
+              <div style={{ width: 28, height: 28, borderRadius: '8px', background: `${c.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Icon size={13} color={c.color} />
+              </div>
+              <span style={{ flex: 1, fontSize: '13px', color: '#cbd5e1', fontWeight: 500 }}>{c.label}</span>
+              {/* Toggle-Schieber */}
+              <div style={{
+                width: 32, height: 18, borderRadius: '9px',
+                background: on ? c.color : '#1e1e1e',
+                position: 'relative', transition: 'background 0.15s', flexShrink: 0,
+              }}>
+                <div style={{
+                  position: 'absolute', top: 2, left: on ? 16 : 2,
+                  width: 14, height: 14, borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }} />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: '10px', color: '#475569', margin: '8px 0 0', lineHeight: 1.4 }}>
+        Dein Freund sieht <strong>alle</strong> Einträge der aktivierten Kategorien.
+        Du kannst zusätzlich einzelne Einträge unter "Mit Freunden geteilt" gezielt freigeben.
+      </p>
+    </div>
+  );
+}
 
 const RESOURCE_LABELS = {
   document: { label: 'Dokumente', icon: FileText, color: '#f97316' },
@@ -51,6 +122,7 @@ export default function Friends() {
   });
 
   const { accepted, incoming, outgoing } = friendsData;
+  const [expanded, setExpanded] = useState({}); // {friendId: true}
 
   return (
     <div className="space-y-5">
@@ -100,22 +172,33 @@ export default function Friends() {
             message="Sende eine Anfrage per E-Mail oder Username oben." />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {accepted.map(f => (
-              <div key={f.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                {f.avatar
-                  ? <img src={f.avatar} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                  : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#f43f5e,#fb7185)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{f.username[0].toUpperCase()}</div>
-                }
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.username}</p>
-                  <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.email}</p>
+            {accepted.map(f => {
+              const isExp = expanded[f.user_id];
+              return (
+                <div key={f.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {f.avatar
+                      ? <img src={f.avatar} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                      : <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'linear-gradient(135deg,#f43f5e,#fb7185)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '17px', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{f.username[0].toUpperCase()}</div>
+                    }
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.username}</p>
+                      <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.email}</p>
+                    </div>
+                    <button onClick={() => setExpanded(e => ({ ...e, [f.user_id]: !e[f.user_id] }))}
+                      title="Berechtigungen verwalten"
+                      style={{ padding: '7px', borderRadius: '8px', background: isExp ? 'rgba(244,63,94,0.15)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isExp ? 'rgba(244,63,94,0.3)' : '#1e1e1e'}`, color: isExp ? '#fb7185' : '#94a3b8', cursor: 'pointer' }}>
+                      <Settings size={14} />
+                    </button>
+                    <button onClick={() => { if (confirm(`${f.username} aus Freundesliste entfernen? Alle Freigaben werden ebenfalls gelöscht.`)) removeMut.mutate(f.id); }}
+                      style={{ padding: '7px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', cursor: 'pointer' }}>
+                      <UserMinus size={14} />
+                    </button>
+                  </div>
+                  {isExp && <FriendPermissions friendId={f.user_id} friendUsername={f.username} />}
                 </div>
-                <button onClick={() => { if (confirm(`${f.username} aus Freundesliste entfernen? Alle Freigaben werden ebenfalls gelöscht.`)) removeMut.mutate(f.id); }}
-                  style={{ padding: '7px', borderRadius: '8px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', cursor: 'pointer' }}>
-                  <UserMinus size={14} />
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )
       ) : tab === 'incoming' ? (
