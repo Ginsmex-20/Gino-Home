@@ -9,6 +9,7 @@ const CATS = [
   { v: 'subscription', l: 'Abonnements' },
   { v: 'account', l: 'Accounts' },
   { v: 'email', l: 'E-Mails' },
+  { v: 'support', l: 'Support' },
   { v: 'other', l: 'Sonstiges' },
 ];
 
@@ -48,10 +49,12 @@ function VaultEntry({ entry, onEdit, onDelete }) {
     subscription: 'text-amber-400 bg-amber-500/10',
     account:      'text-blue-400 bg-blue-500/10',
     email:        'text-purple-400 bg-purple-500/10',
+    support:      'text-cyan-400 bg-cyan-500/10',
     other:        'text-slate-400 bg-slate-700/60',
   };
-  const catLabels = { subscription: 'Abo', account: 'Account', email: 'E-Mail', other: 'Sonstiges' };
-  const isEmailEntry = entry.category === 'email';
+  const catLabels = { subscription: 'Abo', account: 'Account', email: 'E-Mail', support: 'Support', other: 'Sonstiges' };
+  const isEmailEntry   = entry.category === 'email';
+  const isSupportEntry = entry.category === 'support';
   const hrefUrl = entry.website ? (entry.website.startsWith('http') ? entry.website : `https://${entry.website}`) : '#';
 
   return (
@@ -62,11 +65,15 @@ function VaultEntry({ entry, onEdit, onDelete }) {
             <KeyRound size={16} className="text-orange-500" />
           </div>
           <div className="min-w-0">
-            {/* E-Mail-Einträge: Anbieter als Titel, Adresse darunter */}
             {isEmailEntry ? (
               <>
                 <p className="font-medium text-white truncate">{entry.website || 'E-Mail'}</p>
                 <p className="text-xs text-slate-500 mt-0.5 truncate">{entry.email}</p>
+              </>
+            ) : isSupportEntry ? (
+              <>
+                <p className="font-medium text-white truncate">{entry.title}</p>
+                {entry.username && <p className="text-xs text-cyan-400/80 mt-0.5 truncate">{entry.username}</p>}
               </>
             ) : (
               <>
@@ -101,8 +108,18 @@ function VaultEntry({ entry, onEdit, onDelete }) {
             </button>
           </div>
         )}
-        {/* Benutzername nur bei Nicht-E-Mail-Einträgen */}
-        {!isEmailEntry && entry.username && (
+        {/* Telefon nur bei Support */}
+        {isSupportEntry && entry.username && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-bg rounded-lg">
+            <span className="text-xs text-slate-500 shrink-0 w-20">Telefon</span>
+            <span className="text-xs text-slate-300 flex-1 text-right truncate">{entry.username}</span>
+            <button onClick={() => copy(entry.username, 'username')} className="shrink-0 p-0.5 text-slate-500 hover:text-cyan-400 transition-colors">
+              <Copy size={12} className={copied === 'username' ? 'text-green-400' : ''} />
+            </button>
+          </div>
+        )}
+        {/* Benutzername nur bei normalen Einträgen */}
+        {!isEmailEntry && !isSupportEntry && entry.username && (
           <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-bg rounded-lg">
             <span className="text-xs text-slate-500 shrink-0 w-20">Benutzername</span>
             <span className="text-xs text-slate-300 flex-1 text-right truncate">{entry.username}</span>
@@ -111,7 +128,8 @@ function VaultEntry({ entry, onEdit, onDelete }) {
             </button>
           </div>
         )}
-        {entry.password && (
+        {/* Passwort: nicht bei Support */}
+        {!isSupportEntry && entry.password && (
           <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-bg rounded-lg">
             <span className="text-xs text-slate-500 shrink-0 w-20">Passwort</span>
             <span className="text-xs text-slate-300 flex-1 text-right font-mono truncate">{showPw ? entry.password : '••••••••'}</span>
@@ -124,6 +142,14 @@ function VaultEntry({ entry, onEdit, onDelete }) {
               </button>
             </div>
           </div>
+        )}
+        {/* Support-Website als Link */}
+        {isSupportEntry && entry.website && (
+          <a href={hrefUrl} target="_blank" rel="noreferrer"
+            className="flex items-center gap-1 px-3 py-1.5 bg-bg rounded-lg text-xs text-cyan-400/70 hover:text-cyan-400 transition-colors">
+            <ExternalLink size={11} />
+            <span className="truncate">{displayDomain(entry.website)}</span>
+          </a>
         )}
         {entry.notes && <p className="text-xs text-slate-500 px-1 pt-1 truncate">{entry.notes}</p>}
       </div>
@@ -154,7 +180,8 @@ export default function Vault() {
   const openEdit = entry => { setEditing(entry); setForm({ ...entry }); setShowModal(true); };
   const openCreate = () => { setEditing(null); setForm(emptyForm); setShowModal(true); };
 
-  const isEmailForm = form.category === 'email';
+  const isEmailForm   = form.category === 'email';
+  const isSupportForm = form.category === 'support';
 
   const filtered = entries.filter(e => !search || e.title.toLowerCase().includes(search.toLowerCase()) || e.email?.toLowerCase().includes(search.toLowerCase()) || e.website?.toLowerCase().includes(search.toLowerCase()));
 
@@ -210,6 +237,7 @@ export default function Vault() {
               <option value="subscription">Abonnement</option>
               <option value="account">Account</option>
               <option value="email">E-Mail</option>
+              <option value="support">Support</option>
               <option value="other">Sonstiges</option>
             </select>
           </div>
@@ -231,6 +259,32 @@ export default function Vault() {
               <div>
                 <label className="block text-sm text-slate-400 mb-1.5">Anbieter</label>
                 <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. Gmail, Outlook, iCloud..."
+                  value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} />
+              </div>
+            </>
+          ) : isSupportForm ? (
+            /* ── Support-Modus ─────────────────────────────────────── */
+            <>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Unternehmen *</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="z.B. DHL, O2, Telekom..."
+                  value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1.5">Telefon</label>
+                  <input type="tel" className="w-full px-3.5 py-2.5 text-sm" placeholder="+49 800 123456"
+                    value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1.5">Support-E-Mail</label>
+                  <input type="email" className="w-full px-3.5 py-2.5 text-sm" placeholder="support@firma.de"
+                    value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1.5">Support-Website</label>
+                <input className="w-full px-3.5 py-2.5 text-sm" placeholder="o2online.de/service"
                   value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} />
               </div>
             </>

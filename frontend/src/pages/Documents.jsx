@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Upload, FileText, File, Image, Trash2, Edit, Download,
   Search, Loader2, FilePlus, X, Film, Music, Archive, FileCode, ChevronRight,
-  Copy, CheckSquare, Square, Users, Star, AlertCircle, ArrowDownUp
+  Copy, CheckSquare, Square, Users, Star, AlertCircle, ArrowDownUp,
+  Calendar, CheckCircle2, BellRing
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -63,6 +64,19 @@ function formatSize(b) {
   return (b / 1048576).toFixed(1) + ' MB';
 }
 
+function getDueUrgency(due_date, paid) {
+  if (!due_date) return null;
+  if (paid) return { level: 'paid', label: 'Bezahlt', color: '#22c55e', bg: 'rgba(34,197,94,0.1)', border: '#22c55e' };
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const due = new Date(due_date);
+  const diffDays = Math.ceil((due - today) / 86400000);
+  if (diffDays < 0)  return { level: 'overdue',  label: `Überfällig (${Math.abs(diffDays)}T)`, color: '#ef4444', bg: 'rgba(239,68,68,0.12)',  border: '#ef4444' };
+  if (diffDays === 0) return { level: 'today',   label: 'Heute fällig!',               color: '#f97316', bg: 'rgba(249,115,22,0.12)', border: '#f97316' };
+  if (diffDays <= 7)  return { level: 'soon',    label: `Fällig in ${diffDays}T`,      color: '#f97316', bg: 'rgba(249,115,22,0.1)',  border: '#f97316' };
+  if (diffDays <= 30) return { level: 'upcoming',label: `Fällig in ${diffDays}T`,      color: '#eab308', bg: 'rgba(234,179,8,0.1)',   border: '#eab308' };
+  return { level: 'ok', label: format(due, 'd. MMM yyyy', { locale: de }), color: '#64748b', bg: 'rgba(100,116,139,0.08)', border: 'transparent' };
+}
+
 // ── Wichtigkeitskonfiguration ─────────────────────────────────────────────────
 const IMPORTANCE = {
   dringend: { label: 'Dringend', color: '#ef4444', bg: 'rgba(239,68,68,0.1)', border: '#ef4444' },
@@ -103,8 +117,9 @@ export default function Documents() {
   const [catFilter,   setCatFilter]   = useState('');   // z.B. 'contract'
   const [subFilter,   setSubFilter]   = useState('');   // z.B. 'Handyvertrag O2'
   const [typeFilter,  setTypeFilter]  = useState('');
-  const [sortBy,      setSortBy]      = useState('importance'); // 'importance' | 'date' | 'name' | 'size'
+  const [sortBy,      setSortBy]      = useState('importance'); // 'importance' | 'date' | 'name' | 'size' | 'due'
   const [importanceFilter, setImportanceFilter] = useState(''); // '' | 'starred' | 'dringend' | 'wichtig' | 'archiv'
+  const [dueFilter,   setDueFilter]   = useState(''); // '' | 'overdue' | 'pending' | 'paid'
 
   // Modals
   const [showUpload,  setShowUpload]  = useState(false);
@@ -112,9 +127,9 @@ export default function Documents() {
   const [editDoc,     setEditDoc]     = useState(null);
 
   // Formulare
-  const [uploadForm,  setUploadForm]  = useState({ title: '', category: 'contract', subcategory: '', description: '' });
+  const [uploadForm,  setUploadForm]  = useState({ title: '', category: 'contract', subcategory: '', description: '', due_date: '', paid: false });
   const [selectedFile,setSelectedFile]= useState(null);
-  const [editForm,    setEditForm]    = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0 });
+  const [editForm,    setEditForm]    = useState({ title: '', category: '', subcategory: '', description: '', importance: 'normal', starred: 0, due_date: '', paid: false });
   const [uploadError, setUploadError] = useState('');
 
   // Neue Kategorie inline
@@ -242,6 +257,11 @@ export default function Documents() {
     onSuccess: () => qc.invalidateQueries(['documents']),
   });
 
+  const paidMut = useMutation({
+    mutationFn: id => api.patch(`/documents/${id}/paid`, {}),
+    onSuccess: () => qc.invalidateQueries(['documents']),
+  });
+
   const importanceMut = useMutation({
     mutationFn: ({ id, importance }) => api.patch(`/documents/${id}/importance`, { importance }),
     onSuccess: () => qc.invalidateQueries(['documents']),
@@ -257,6 +277,8 @@ export default function Documents() {
     fd.append('category', uploadForm.category);
     fd.append('subcategory', uploadForm.subcategory || '');
     fd.append('description', uploadForm.description);
+    if (uploadForm.due_date) fd.append('due_date', uploadForm.due_date);
+    fd.append('paid', uploadForm.paid ? '1' : '0');
     uploadMut.mutate(fd);
   };
 
@@ -273,10 +295,17 @@ export default function Documents() {
     else { setSelectedDocs(new Set(sortedFiltered.map(d => d.id))); }
   };
 
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const overdueDocs = docs.filter(d => d.due_date && !d.paid && new Date(d.due_date) < today);
+  const soonDocs    = docs.filter(d => d.due_date && !d.paid && new Date(d.due_date) >= today && Math.ceil((new Date(d.due_date) - today) / 86400000) <= 7);
+
   const filtered = docs.filter(d => {
     if (search && !d.title.toLowerCase().includes(search.toLowerCase()) && !d.filename.toLowerCase().includes(search.toLowerCase())) return false;
     if (typeFilter && !matchesMime(d.mimetype, typeFilter)) return false;
     if (subFilter && d.subcategory !== subFilter) return false;
+    if (dueFilter === 'overdue')  return d.due_date && !d.paid && new Date(d.due_date) < today;
+    if (dueFilter === 'pending')  return d.due_date && !d.paid;
+    if (dueFilter === 'paid')     return d.paid;
     return true;
   });
 
@@ -297,6 +326,11 @@ export default function Documents() {
       if (sortBy === 'date') return new Date(b.created_at) - new Date(a.created_at);
       if (sortBy === 'name') return a.title.localeCompare(b.title);
       if (sortBy === 'size') return (b.size || 0) - (a.size || 0);
+      if (sortBy === 'due') {
+        const da = a.due_date ? new Date(a.due_date) : new Date('9999-12-31');
+        const db2 = b.due_date ? new Date(b.due_date) : new Date('9999-12-31');
+        return da - db2;
+      }
       return 0;
     });
 
@@ -319,6 +353,28 @@ export default function Documents() {
           <Upload size={16} /> Hochladen
         </button>
       </div>
+
+      {/* Warnbanner Fälligkeit */}
+      {(overdueDocs.length > 0 || soonDocs.length > 0) && (
+        <div style={{
+          background: overdueDocs.length > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(249,115,22,0.08)',
+          border: `1px solid ${overdueDocs.length > 0 ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.3)'}`,
+          borderRadius: '14px', padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer',
+        }} onClick={() => setDueFilter(overdueDocs.length > 0 ? 'overdue' : 'pending')}>
+          <BellRing size={16} color={overdueDocs.length > 0 ? '#ef4444' : '#f97316'} style={{ flexShrink: 0 }} />
+          <span style={{ flex: 1, fontSize: '13px', color: '#e2e8f0' }}>
+            {overdueDocs.length > 0 && (
+              <span style={{ color: '#ef4444', fontWeight: 700 }}>{overdueDocs.length} Dokument{overdueDocs.length !== 1 ? 'e' : ''} überfällig</span>
+            )}
+            {overdueDocs.length > 0 && soonDocs.length > 0 && <span style={{ color: '#475569' }}> · </span>}
+            {soonDocs.length > 0 && (
+              <span style={{ color: '#f97316', fontWeight: 600 }}>{soonDocs.length} in den nächsten 7 Tagen fällig</span>
+            )}
+          </span>
+          <span style={{ fontSize: '11px', color: '#475569' }}>Anzeigen →</span>
+        </div>
+      )}
 
       {/* Suchzeile */}
       <div className="relative">
@@ -454,6 +510,7 @@ export default function Documents() {
         <span style={{ fontSize: '11px', color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '2px' }}>Sortierung:</span>
         {[
           { key: 'importance', label: 'Wichtigkeit' },
+          { key: 'due',        label: 'Fälligkeit' },
           { key: 'date',       label: 'Datum' },
           { key: 'name',       label: 'Name' },
           { key: 'size',       label: 'Größe' },
@@ -483,6 +540,20 @@ export default function Documents() {
             background: importanceFilter === f.key ? 'rgba(249,115,22,0.15)' : 'transparent',
             color: importanceFilter === f.key ? '#f97316' : '#64748b',
             border: importanceFilter === f.key ? '1px solid rgba(249,115,22,0.4)' : '1px solid #2a2a2a',
+          }}>{f.label}</button>
+        ))}
+        <div style={{ width: '1px', height: '16px', background: '#1e1e1e', margin: '0 2px' }} />
+        {[
+          { key: 'overdue', label: 'Überfällig', color: '#ef4444' },
+          { key: 'pending', label: 'Ausstehend', color: '#f97316' },
+          { key: 'paid',    label: 'Bezahlt',    color: '#22c55e' },
+        ].map(f => (
+          <button key={f.key} onClick={() => setDueFilter(dueFilter === f.key ? '' : f.key)} style={{
+            padding: '5px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500,
+            cursor: 'pointer', transition: 'all 0.15s', whiteSpace: 'nowrap',
+            background: dueFilter === f.key ? `${f.color}22` : 'transparent',
+            color: dueFilter === f.key ? f.color : '#64748b',
+            border: dueFilter === f.key ? `1px solid ${f.color}66` : '1px solid #2a2a2a',
           }}>{f.label}</button>
         ))}
       </div>
@@ -547,6 +618,30 @@ export default function Documents() {
                       {doc.category}{doc.subcategory ? ` › ${doc.subcategory}` : ''}
                     </span>
                   )}
+                  {/* Fälligkeits-Badge */}
+                  {(() => {
+                    const urg = getDueUrgency(doc.due_date, doc.paid);
+                    if (!urg) return null;
+                    return (
+                      <button
+                        onClick={() => paidMut.mutate(doc.id)}
+                        title={doc.paid ? 'Als unbezahlt markieren' : 'Als bezahlt markieren'}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: '4px',
+                          padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 600,
+                          background: urg.bg, color: urg.color,
+                          border: `1px solid ${urg.border}66`,
+                          cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {doc.paid
+                          ? <CheckCircle2 size={11} />
+                          : <Calendar size={11} />
+                        }
+                        {urg.label}
+                      </button>
+                    );
+                  })()}
                   {/* Importance badge — click to cycle */}
                   {imp !== 'normal' && (
                     <button
@@ -582,7 +677,7 @@ export default function Documents() {
                   {/* Actions */}
                   <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity" style={{ flexShrink: 0 }}>
                     <a href={doc.filepath} download target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-green-400 rounded-lg transition-colors"><Download size={14} /></a>
-                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0 }); setShowEdit(true); }}
+                    <button onClick={() => { setEditDoc(doc); setEditForm({ title: doc.title, category: doc.category || 'other', subcategory: doc.subcategory || '', description: doc.description || '', importance: doc.importance || 'normal', starred: doc.starred || 0, due_date: doc.due_date || '', paid: !!doc.paid }); setShowEdit(true); }}
                       className="p-1.5 text-slate-500 hover:text-white rounded-lg transition-colors"><Edit size={14} /></button>
                     <button onClick={() => delMut.mutate(doc.id)} className="p-1.5 text-slate-500 hover:text-red-400 rounded-lg transition-colors"><Trash2 size={14} /></button>
                   </div>
@@ -646,6 +741,25 @@ export default function Documents() {
           <div><label className="block text-sm text-slate-400 mb-1.5">Beschreibung</label>
             <textarea className="w-full px-3.5 py-2.5 text-sm resize-none" rows={2} value={uploadForm.description}
               onChange={e => setUploadForm(f => ({ ...f, description: e.target.value }))} /></div>
+
+          {/* Fälligkeitsdatum (optional) */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Calendar size={13} /> Fällig am <span className="text-slate-600 text-xs">(optional)</span>
+              </label>
+              <input type="date" className="w-full px-3.5 py-2.5 text-sm"
+                value={uploadForm.due_date}
+                onChange={e => setUploadForm(f => ({ ...f, due_date: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '8px' }}>
+                <input type="checkbox" checked={uploadForm.paid} onChange={e => setUploadForm(f => ({ ...f, paid: e.target.checked }))}
+                  style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
+                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bereits bezahlt</span>
+              </label>
+            </div>
+          </div>
 
           {uploadError && <p className="text-sm text-red-400 bg-red-500/10 rounded-lg px-3 py-2">{uploadError}</p>}
 
@@ -764,6 +878,24 @@ export default function Documents() {
                   {cfg.label}
                 </button>
               ))}
+            </div>
+          </div>
+          {/* Fälligkeitsdatum + Bezahlt im Edit-Modal */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5 flex items-center gap-1.5">
+                <Calendar size={13} /> Fällig am
+              </label>
+              <input type="date" className="w-full px-3.5 py-2.5 text-sm"
+                value={editForm.due_date}
+                onChange={e => setEditForm(f => ({ ...f, due_date: e.target.value }))} />
+            </div>
+            <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', paddingBottom: '8px' }}>
+                <input type="checkbox" checked={editForm.paid} onChange={e => setEditForm(f => ({ ...f, paid: e.target.checked }))}
+                  style={{ accentColor: '#22c55e', width: '15px', height: '15px' }} />
+                <span style={{ fontSize: '13px', color: '#94a3b8' }}>Bezahlt</span>
+              </label>
             </div>
           </div>
           <div className="flex justify-end gap-2">

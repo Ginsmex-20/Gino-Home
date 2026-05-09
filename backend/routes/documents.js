@@ -95,7 +95,7 @@ router.get('/', auth, (req, res) => {
 
 router.post('/upload', auth, upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Keine Datei' });
-  const { title, category, description, group_id, subcategory } = req.body;
+  const { title, category, description, group_id, subcategory, due_date, paid } = req.body;
   const filepath = `/uploads/documents/${req.file.filename}`;
 
   // ── Nextcloud-Sync ──────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
   }
 
   const result = db.prepare(
-    'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO documents (title, filename, filepath, size, mimetype, category, subcategory, description, group_id, nc_path, uploaded_by, due_date, paid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     title || req.file.originalname,
     req.file.originalname,
@@ -132,7 +132,9 @@ router.post('/upload', auth, upload.single('file'), async (req, res) => {
     description,
     group_id || null,
     nc_path,
-    req.user.id
+    req.user.id,
+    due_date || null,
+    paid ? 1 : 0
   );
   res.json(db.prepare('SELECT * FROM documents WHERE id = ?').get(result.lastInsertRowid));
 });
@@ -188,10 +190,17 @@ router.patch('/:id/importance', auth, (req, res) => {
   res.json({ success: true });
 });
 
+router.patch('/:id/paid', auth, (req, res) => {
+  const doc = db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id);
+  if (!doc) return res.status(404).json({ error: 'Nicht gefunden' });
+  db.prepare('UPDATE documents SET paid = ? WHERE id = ?').run(doc.paid ? 0 : 1, req.params.id);
+  res.json({ paid: !doc.paid });
+});
+
 router.put('/:id', auth, (req, res) => {
-  const { title, category, description, subcategory, importance, starred } = req.body;
-  db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ?, importance = ?, starred = ? WHERE id = ? AND uploaded_by = ?')
-    .run(title, category, subcategory || null, description, importance || 'normal', starred ? 1 : 0, req.params.id, req.user.id);
+  const { title, category, description, subcategory, importance, starred, due_date, paid } = req.body;
+  db.prepare('UPDATE documents SET title = ?, category = ?, subcategory = ?, description = ?, importance = ?, starred = ?, due_date = ?, paid = ? WHERE id = ? AND uploaded_by = ?')
+    .run(title, category, subcategory || null, description, importance || 'normal', starred ? 1 : 0, due_date || null, paid ? 1 : 0, req.params.id, req.user.id);
   res.json(db.prepare('SELECT * FROM documents WHERE id = ?').get(req.params.id));
 });
 

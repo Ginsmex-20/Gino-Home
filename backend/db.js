@@ -279,4 +279,8 @@ try { db.exec(`CREATE TABLE IF NOT EXISTS workspace_items (
 try { db.exec('ALTER TABLE documents ADD COLUMN importance TEXT DEFAULT "normal"'); } catch {}
 try { db.exec('ALTER TABLE documents ADD COLUMN starred INTEGER DEFAULT 0'); } catch {}
 
+// Dokumente: Fälligkeitsdatum + Bezahlt-Status
+try { db.exec('ALTER TABLE documents ADD COLUMN due_date DATE'); } catch {}
+try { db.exec('ALTER TABLE documents ADD COLUMN paid INTEGER DEFAULT 0'); } catch {}
+
 module.exports = db;
