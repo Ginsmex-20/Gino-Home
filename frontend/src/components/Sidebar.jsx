@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, CheckSquare, Euro, FileText,
   KeyRound, Calendar, User, LogOut, Home, Briefcase, Star,
   ChevronDown, ChevronRight, Plus, X, PanelLeftClose, PanelLeftOpen, ShoppingCart, Hash, BookOpen, ReceiptText,
-  Zap,
+  Zap, Heart,
 } from 'lucide-react';
 import useAuth from '../stores/auth';
 import api from '../api/client';
@@ -353,6 +353,34 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
           <NotificationBell noClick />
           {!collapsed && <span style={{ fontSize: '14px', fontWeight: 500, color: '#64748b' }}>Benachrichtigungen</span>}
         </button>
+        {/* Freunde */}
+        <NavLink
+          to="/friends"
+          onClick={() => onClose?.()}
+          title={collapsed ? 'Freunde' : undefined}
+          style={({ isActive }) => ({
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            gap: collapsed ? 0 : '12px',
+            padding: collapsed ? '0' : '10px 12px',
+            height: collapsed ? '44px' : undefined,
+            borderRadius: '12px',
+            fontSize: '14px', fontWeight: 500,
+            textDecoration: 'none',
+            transition: 'background 0.15s',
+            background: isActive ? (collapsed ? 'rgba(244,63,94,0.2)' : '#f43f5e') : 'transparent',
+            color: isActive ? (collapsed ? '#f43f5e' : '#fff') : '#64748b',
+          })}
+        >
+          {({ isActive }) => (
+            <>
+              <Heart size={18} color={isActive ? (collapsed ? '#f43f5e' : '#fff') : '#64748b'} />
+              {!collapsed && <span>Freunde</span>}
+            </>
+          )}
+        </NavLink>
+
         {/* Updates */}
         <NavLink
           to="/updates"

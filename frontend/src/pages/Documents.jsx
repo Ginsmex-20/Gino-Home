@@ -7,7 +7,7 @@ import {
   Calendar, CheckCircle2, BellRing, Paperclip, Plus,
   FileSignature, Receipt, CreditCard, Shield, Banknote, Folder,
   AlertTriangle, Eye, FolderOpen, LayoutGrid, List as ListIcon,
-  Link2, Euro, Unlink,
+  Link2, Euro, Unlink, Heart, Share2,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
@@ -179,11 +179,34 @@ function DetailModal({ open, doc, onClose, onEdit, onDelete, onLinkContract, onL
   const qc = useQueryClient();
   const fileRef = useRef();
   const [uploading, setUploading] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const { data: attachments = [], isLoading } = useQuery({
     queryKey: ['attachments', doc?.id],
     queryFn: () => api.get(`/documents/${doc.id}/attachments`),
     enabled: !!doc?.id && open,
+  });
+
+  const { data: friendsData = { accepted: [] } } = useQuery({
+    queryKey: ['friends'],
+    queryFn: () => api.get('/friends'),
+    enabled: open,
+  });
+
+  const { data: shareAccess = [] } = useQuery({
+    queryKey: ['share-access', 'document', doc?.id],
+    queryFn: () => api.get(`/friends/share/access/document/${doc.id}`),
+    enabled: !!doc?.id && open,
+  });
+
+  const shareMut = useMutation({
+    mutationFn: friend_id => api.post('/friends/share', { friend_id, resource_type: 'document', resource_id: doc.id }),
+    onSuccess: () => qc.invalidateQueries(['share-access', 'document', doc.id]),
+  });
+
+  const unshareMut = useMutation({
+    mutationFn: friend_id => api.delete('/friends/share', { data: { friend_id, resource_type: 'document', resource_id: doc.id } }),
+    onSuccess: () => qc.invalidateQueries(['share-access', 'document', doc.id]),
   });
 
   const addAttachMut = useMutation({
@@ -377,6 +400,51 @@ function DetailModal({ open, doc, onClose, onEdit, onDelete, onLinkContract, onL
             ))
           )}
         </div>
+
+        {/* Mit Freunden teilen */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+          <p style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Heart size={12} /> Mit Freunden geteilt {shareAccess.length > 0 && <span style={{ background: '#f43f5e', color: '#fff', borderRadius: '8px', padding: '1px 7px', fontSize: '10px' }}>{shareAccess.length}</span>}
+          </p>
+          <button onClick={() => setShowShare(v => !v)}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 10px', background: 'rgba(244,63,94,0.1)', color: '#fb7185', border: '1px solid rgba(244,63,94,0.3)', borderRadius: '8px', fontSize: '12px', fontWeight: 500, cursor: 'pointer' }}>
+            <Share2 size={12} /> {showShare ? 'Schließen' : 'Verwalten'}
+          </button>
+        </div>
+
+        {showShare && (
+          <div style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '10px', marginBottom: '14px', maxHeight: '180px', overflowY: 'auto' }}>
+            {friendsData.accepted.length === 0 ? (
+              <p style={{ textAlign: 'center', fontSize: '12px', color: '#64748b', margin: '12px 0' }}>
+                Noch keine Freunde — gehe zu <a href="/friends" style={{ color: '#fb7185' }}>Freunde</a> um welche hinzuzufügen
+              </p>
+            ) : (
+              friendsData.accepted.map(f => {
+                const shared = shareAccess.find(s => s.user_id === f.user_id);
+                return (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 8px', borderRadius: '8px' }}>
+                    {f.avatar
+                      ? <img src={f.avatar} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
+                      : <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'linear-gradient(135deg,#f43f5e,#fb7185)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#fff' }}>{f.username[0].toUpperCase()}</div>
+                    }
+                    <span style={{ flex: 1, fontSize: '13px', color: '#cbd5e1' }}>{f.username}</span>
+                    {shared ? (
+                      <button onClick={() => unshareMut.mutate(f.user_id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 9px', background: '#22c55e22', border: '1px solid #22c55e55', borderRadius: '7px', color: '#22c55e', fontSize: '11px', cursor: 'pointer' }}>
+                        ✓ Geteilt
+                      </button>
+                    ) : (
+                      <button onClick={() => shareMut.mutate(f.user_id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '4px 9px', background: 'transparent', border: '1px solid #2a2a2a', borderRadius: '7px', color: '#94a3b8', fontSize: '11px', cursor: 'pointer' }}>
+                        Teilen
+                      </button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
 
         {/* Aktionen */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', borderTop: '1px solid #1e1e1e', paddingTop: '14px' }}>
