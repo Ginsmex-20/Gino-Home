@@ -55,20 +55,45 @@ function OwnerBadge({ side, ownerName, color }) {
   );
 }
 
-/* Tab-Komponente: zeigt Items einer Kategorie aus BEIDEN Richtungen */
-function CategoryItems({ ownerId, type, category }) {
+/* Tab-Komponente: zeigt Items einer Kategorie
+   filterMode: 'friend' (Default — nur was Freund mir gegeben hat)
+              | 'both'  (Unser Gemeinsames — beide Richtungen) */
+function CategoryItems({ ownerId, type, category, filterMode = 'friend' }) {
   const { data: response = { items: [], permissions: {} }, isLoading } = useQuery({
     queryKey: ['joint', ownerId, type],
     queryFn: () => api.get(`/friends/joint/${ownerId}/${type}`),
   });
-  const items = response.items || [];
+  const allItems = response.items || [];
+  const items = filterMode === 'friend'
+    ? allItems.filter(i => i.side === 'friend')
+    : allItems;
+  const canUpload = !!response.permissions?.theirs?.can_upload;
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 size={24} className="animate-spin text-orange-500" /></div>;
-  if (items.length === 0) return <EmptyState icon={category.icon} title="Nichts gemeinsam" message="Hier landen Einträge sobald einer von euch beiden was teilt." />;
+
+  // Upload-Button (wenn der Freund mir Hochlade-Recht gegeben hat)
+  const UploadHint = canUpload ? (
+    <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: '10px', padding: '10px 12px', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <span style={{ fontSize: '13px', color: '#22c55e' }}>✓ Du darfst hier Einträge hinzufügen</span>
+    </div>
+  ) : null;
+
+  if (items.length === 0) return (
+    <>
+      {UploadHint}
+      <EmptyState icon={category.icon} title="Nichts hier"
+        message={filterMode === 'friend'
+          ? 'Dein Freund hat in dieser Kategorie noch nichts mit dir geteilt.'
+          : 'Noch keine gemeinsamen Einträge — wenn ihr beide etwas freigebt, erscheint es hier.'} />
+    </>
+  );
+
+  // Wrapper mit Upload-Hinweis
+  const wrap = (content) => (<>{UploadHint}{content}</>);
 
   // Item-Render je nach Typ
   if (type === 'document') {
-    return (
+    return wrap(
       <div className="bg-bg-card border border-border rounded-2xl overflow-hidden">
         {items.map(d => (
           <div key={`${d.side}-${d.id}`} style={{ padding: '12px 16px', borderTop: '1px solid #1e1e1e', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -94,7 +119,7 @@ function CategoryItems({ ownerId, type, category }) {
   }
 
   if (type === 'task') {
-    return (
+    return wrap(
       <div className="space-y-2">
         {items.map(t => (
           <div key={`${t.side}-${t.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px' }}>
@@ -112,11 +137,11 @@ function CategoryItems({ ownerId, type, category }) {
   }
 
   if (type === 'contract') {
-    return (
+    return wrap(
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {items.map(c => (
-          <div key={c.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <div key={`${c.side}-${c.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
               <div style={{ width: 38, height: 38, borderRadius: '10px', background: `${category.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <FileSignature size={16} color={category.color} />
               </div>
@@ -124,6 +149,7 @@ function CategoryItems({ ownerId, type, category }) {
                 <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</p>
                 <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>{c.company || '–'}</p>
               </div>
+              <OwnerBadge side={c.side} ownerName={c.owner_name} />
               <StatusPill status={c.status} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
@@ -137,11 +163,11 @@ function CategoryItems({ ownerId, type, category }) {
   }
 
   if (type === 'loan') {
-    return (
+    return wrap(
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {items.map(l => (
-          <div key={l.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+          <div key={`${l.side}-${l.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px', flexWrap: 'wrap' }}>
               <div style={{ width: 38, height: 38, borderRadius: '10px', background: `${category.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <CreditCard size={16} color={category.color} />
               </div>
@@ -149,6 +175,7 @@ function CategoryItems({ ownerId, type, category }) {
                 <p style={{ fontSize: '14px', fontWeight: 600, color: '#fff', margin: 0 }}>{l.title}</p>
                 <p style={{ fontSize: '11px', color: '#64748b', margin: '2px 0 0' }}>{l.lender || '–'}</p>
               </div>
+              <OwnerBadge side={l.side} ownerName={l.owner_name} />
               <StatusPill status={l.status} />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
@@ -162,10 +189,10 @@ function CategoryItems({ ownerId, type, category }) {
   }
 
   if (type === 'finance_item') {
-    return (
+    return wrap(
       <div className="space-y-2">
         {items.map(f => (
-          <div key={f.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div key={`${f.side}-${f.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: f.type === 'income' ? '#22c55e' : '#ef4444' }} />
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: '14px', color: '#fff', fontWeight: 500, margin: 0 }}>{f.title}</p>
@@ -181,10 +208,10 @@ function CategoryItems({ ownerId, type, category }) {
   }
 
   if (type === 'calendar_event') {
-    return (
+    return wrap(
       <div className="space-y-2">
         {items.map(e => (
-          <div key={e.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div key={`${e.side}-${e.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: e.color || '#60a5fa' }} />
             <div style={{ flex: 1 }}>
               <p style={{ fontSize: '14px', color: '#fff', fontWeight: 500, margin: 0 }}>{e.title}</p>
@@ -197,10 +224,10 @@ function CategoryItems({ ownerId, type, category }) {
   }
 
   if (type === 'vault_entry') {
-    return (
+    return wrap(
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {items.map(v => (
-          <div key={v.id} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
+          <div key={`${v.side}-${v.id}`} style={{ background: '#141414', border: '1px solid #1e1e1e', borderRadius: '14px', padding: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
               <div style={{ width: 38, height: 38, borderRadius: '10px', background: `${category.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <KeyRound size={16} color={category.color} />
@@ -221,8 +248,35 @@ function CategoryItems({ ownerId, type, category }) {
   return null;
 }
 
+/* "Unser Gemeinsames" — Übersicht aller Kategorien mit Items aus BEIDEN Richtungen */
+function JointAllView({ ownerId, categories }) {
+  return (
+    <div className="space-y-4">
+      <div style={{ background: 'rgba(244,63,94,0.06)', border: '1px solid rgba(244,63,94,0.25)', borderRadius: '12px', padding: '12px 14px' }}>
+        <p style={{ fontSize: '13px', color: '#fb7185', fontWeight: 600, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Heart size={14} /> Unser Gemeinsames
+        </p>
+        <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 0 0' }}>
+          Alle Einträge aus beiden Richtungen — Items von Dir und vom Freund vereint, mit klarem Owner-Label.
+        </p>
+      </div>
+      {categories.map(c => (
+        <div key={c.key}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+            <div style={{ width: 24, height: 24, borderRadius: '7px', background: `${c.color}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <c.icon size={12} color={c.color} />
+            </div>
+            <p style={{ fontSize: '13px', color: '#fff', fontWeight: 600, margin: 0 }}>{c.label}</p>
+          </div>
+          <CategoryItems ownerId={ownerId} type={c.key} category={c} filterMode="both" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /* ════════════════════════════════════════════════════════════════════
-   HAUPTKOMPONENTE: Persönliches von [Freund]
+   HAUPTKOMPONENTE: Gemeinsam mit [Freund]
    ════════════════════════════════════════════════════════════════════ */
 export default function SharedFromFriend() {
   const { ownerId, tab } = useParams();
@@ -246,8 +300,10 @@ export default function SharedFromFriend() {
   }
 
   const accessibleCats = CATEGORIES.filter(c => owner.categories.includes(c.key));
-  const activeTab = tab || (accessibleCats[0]?.key || 'document');
-  const activeCat = CATEGORIES.find(c => c.key === activeTab);
+  // "joint" tab als ersten — zeigt alles aus beiden Richtungen
+  const activeTab = tab || 'joint';
+  const isJointTab = activeTab === 'joint';
+  const activeCat = isJointTab ? null : CATEGORIES.find(c => c.key === activeTab);
 
   return (
     <div className="space-y-5">
@@ -278,6 +334,19 @@ export default function SharedFromFriend() {
       {/* Tab-Bar */}
       <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <div style={{ display: 'flex', gap: '4px', background: '#141414', padding: '4px', borderRadius: '14px', minWidth: 'max-content', border: '1px solid #1e1e1e' }}>
+          {/* Spezial-Tab: Unser Gemeinsames — beide Richtungen vereint */}
+          <button onClick={() => navigate(`/shared/${ownerId}/joint`)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px',
+              padding: '8px 14px', borderRadius: '10px',
+              fontSize: '13px', fontWeight: 600, border: 'none', cursor: 'pointer',
+              background: isJointTab ? 'linear-gradient(135deg,#f43f5e,#fb7185)' : 'transparent',
+              color: isJointTab ? '#fff' : '#fb7185',
+              whiteSpace: 'nowrap',
+            }}>
+            <Heart size={13} /> Unser Gemeinsames
+          </button>
+          <div style={{ width: 1, background: '#1e1e1e', margin: '0 4px' }} />
           {accessibleCats.map(c => {
             const Icon = c.icon;
             const isActive = activeTab === c.key;
@@ -299,8 +368,10 @@ export default function SharedFromFriend() {
       </div>
 
       {/* Content */}
-      {activeCat ? (
-        <CategoryItems ownerId={ownerId} type={activeTab} category={activeCat} />
+      {isJointTab ? (
+        <JointAllView ownerId={ownerId} categories={accessibleCats} />
+      ) : activeCat ? (
+        <CategoryItems ownerId={ownerId} type={activeTab} category={activeCat} filterMode="friend" />
       ) : (
         <EmptyState icon={Heart} title="Keine Freigaben" message={`${owner.username} teilt aktuell nichts mit dir.`} />
       )}

@@ -5,7 +5,7 @@ import {
   LayoutDashboard, Users, CheckSquare, Euro, FileText,
   KeyRound, Calendar, User, LogOut, Home, Briefcase, Star,
   ChevronDown, ChevronRight, Plus, X, PanelLeftClose, PanelLeftOpen, ShoppingCart, Hash, BookOpen, ReceiptText,
-  Zap, Heart,
+  Zap, Heart, Headphones,
 } from 'lucide-react';
 import useAuth from '../stores/auth';
 import api from '../api/client';
@@ -23,6 +23,7 @@ const personalNav = [
   { to: '/vault',      icon: KeyRound,        label: 'Tresor'                 },
   { to: '/calendar',   icon: Calendar,        label: 'Kalender'               },
   { to: '/notizen',    icon: BookOpen,        label: 'Notizbuch'              },
+  { to: '/support',    icon: Headphones,      label: 'Support'                },
 ];
 
 const groupSubNav = [
