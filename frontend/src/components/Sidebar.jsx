@@ -311,7 +311,9 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
       minWidth: W,
       display: 'flex',
       flexDirection: 'column',
-      background: '#111111',
+      background: isMobile ? '#0e0e10' : 'rgba(14,14,16,0.72)',
+      backdropFilter: isMobile ? 'none' : 'blur(20px) saturate(160%)',
+      WebkitBackdropFilter: isMobile ? 'none' : 'blur(20px) saturate(160%)',
       borderRight: '1px solid rgba(255,255,255,0.06)',
       height: '100%',
       flexShrink: 0,
@@ -337,9 +339,10 @@ export default function Sidebar({ onClose, isMobile, collapsed = false, onToggle
         {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', flexShrink: 0 }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 9, background: '#f97316', flexShrink: 0,
+            width: 32, height: 32, borderRadius: 10, flexShrink: 0,
+            background: 'linear-gradient(135deg, #fb923c 0%, #f97316 50%, #ea580c 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(249,115,22,0.4)',
+            boxShadow: '0 6px 18px rgba(249,115,22,0.45), inset 0 1px 0 rgba(255,255,255,0.2)',
           }}>
             <Home size={16} color="white" />
           </div>
