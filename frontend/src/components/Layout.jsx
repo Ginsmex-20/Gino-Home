@@ -127,7 +127,30 @@ export default function Layout() {
   }, [mobileOpen]);
 
   return (
-    <div style={{ display: 'flex', height: '100dvh', overflow: 'hidden', backgroundColor: '#0f0f0f' }}>
+    <div style={{
+      position: 'relative',
+      display: 'flex',
+      height: '100dvh',
+      overflow: 'hidden',
+      backgroundColor: '#0a0a0a',
+      backgroundImage:
+        'radial-gradient(ellipse 60% 50% at 100% 0%, rgba(249,115,22,0.08), transparent 60%),' +
+        'radial-gradient(ellipse 50% 40% at 0% 100%, rgba(249,115,22,0.05), transparent 60%)',
+    }}>
+      {/* Ambient Blobs — dezent, nicht ablenkend */}
+      <div aria-hidden style={{
+        position: 'absolute', top: '-180px', right: '-120px',
+        width: '420px', height: '420px', borderRadius: '50%',
+        background: 'rgba(249,115,22,0.18)', filter: 'blur(120px)',
+        pointerEvents: 'none', zIndex: 0,
+      }} className="animate-blob" />
+      <div aria-hidden style={{
+        position: 'absolute', bottom: '-200px', left: '-160px',
+        width: '460px', height: '460px', borderRadius: '50%',
+        background: 'rgba(234,88,12,0.12)', filter: 'blur(140px)',
+        pointerEvents: 'none', zIndex: 0, animationDelay: '-6s',
+      }} className="animate-blob" />
+
       <UpdateBanner />
       <SocketManager />
       <NotificationPanel />
@@ -137,7 +160,7 @@ export default function Layout() {
           DESKTOP SIDEBAR — per CSS (.sidebar-desktop) auf
           Mobilgeräten ausgeblendet (display:none !important)
           ════════════════════════════════════════════════════ */}
-      <div className="sidebar-desktop" style={{ display: 'flex', flexShrink: 0 }}>
+      <div className="sidebar-desktop" style={{ display: 'flex', flexShrink: 0, position: 'relative', zIndex: 1 }}>
         <Sidebar
           collapsed={collapsed}
           onToggleCollapse={toggleCollapsed}
@@ -177,7 +200,7 @@ export default function Layout() {
       {/* ════════════════════════════════════════════════════
           HAUPTBEREICH
           ════════════════════════════════════════════════════ */}
-      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0, position: 'relative', zIndex: 1 }}>
 
         {/* Mobiler App-Header (per CSS nur auf Mobile sichtbar) */}
         <header

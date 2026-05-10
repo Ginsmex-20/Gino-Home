@@ -16,10 +16,11 @@ export default function BottomNav() {
   return (
     <nav style={{
       position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 35,
-      background: 'rgba(10,10,10,0.97)',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
-      borderTop: '1px solid rgba(255,255,255,0.07)',
+      background: 'rgba(14,14,16,0.78)',
+      backdropFilter: 'blur(24px) saturate(160%)',
+      WebkitBackdropFilter: 'blur(24px) saturate(160%)',
+      borderTop: '1px solid rgba(255,255,255,0.08)',
+      boxShadow: '0 -8px 32px -12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
       paddingBottom: 'env(safe-area-inset-bottom, 8px)',
     }}>
       <div style={{

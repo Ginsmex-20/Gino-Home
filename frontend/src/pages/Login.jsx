@@ -112,22 +112,45 @@ export default function Login() {
 
   return (
     <div style={{
-      minHeight: '100dvh', background: '#161616',
-      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+      position: 'relative',
+      minHeight: '100dvh', background: '#0a0a0a',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: '16px', overflow: 'hidden',
     }}>
-      <div style={{ width: '100%', maxWidth: '360px' }}>
+      {/* Ambient Blobs */}
+      <div aria-hidden style={{
+        position: 'absolute', top: '-160px', left: '-120px',
+        width: '460px', height: '460px', borderRadius: '50%',
+        background: 'rgba(249,115,22,0.30)', filter: 'blur(120px)',
+        pointerEvents: 'none',
+      }} className="animate-blob" />
+      <div aria-hidden style={{
+        position: 'absolute', bottom: '-180px', right: '-140px',
+        width: '500px', height: '500px', borderRadius: '50%',
+        background: 'rgba(234,88,12,0.22)', filter: 'blur(140px)',
+        pointerEvents: 'none', animationDelay: '-6s',
+      }} className="animate-blob" />
+      <div aria-hidden className="grid-pattern" style={{
+        position: 'absolute', inset: 0, pointerEvents: 'none',
+      }} />
+
+      <div style={{ width: '100%', maxWidth: '380px', position: 'relative', zIndex: 1 }}>
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '28px' }}>
-          <img src="/logo.svg" alt="Gino-Home" style={{ width: '72px', height: '72px', margin: '0 auto 12px', display: 'block', filter: 'drop-shadow(0 0 16px rgba(249,115,22,0.5))' }} />
-          <h1 style={{ margin: '0 0 4px', color: '#fff', fontSize: '22px', fontWeight: 700 }}>Gino-Home</h1>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '14px' }}>Willkommen zurück</p>
+          <img src="/logo.svg" alt="Gino-Home" style={{ width: '76px', height: '76px', margin: '0 auto 14px', display: 'block', filter: 'drop-shadow(0 0 24px rgba(249,115,22,0.55))' }} />
+          <h1
+            className="text-gradient-brand"
+            style={{ margin: '0 0 4px', fontSize: '28px', fontWeight: 700, letterSpacing: '-0.5px' }}
+          >
+            Gino-Home
+          </h1>
+          <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px' }}>Willkommen zurück</p>
         </div>
 
-        {/* Card */}
-        <div style={{
-          background: '#1e1e1e', border: '1px solid #2a2a2a',
-          borderRadius: '20px', padding: '24px',
+        {/* Glass-Card */}
+        <div className="glass-card" style={{
+          borderRadius: '24px', padding: '26px',
         }}>
           {error && (
             <div style={{
